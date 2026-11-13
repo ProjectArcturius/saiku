@@ -66,11 +66,11 @@ ShellPage          NavigationView 外壳（含响应式窗格模式 + 搜索框�
 ## 完整信任伴随进程（`uwp/host/`）
 
 UWP 跑在 AppContainer 里，**起不了 `dsh` 子进程、读不到 `%APPDATA%`**（AGENTS P1 的三条限制，
-改代码绕不过去）。所以执行与文件访问交给包内一个完整信任的伴随进程 `ArcDeck.Host.exe`，
+改代码绕不过去）。所以执行与文件访问交给包内一个完整信任的伴随进程 `Saiku.Host.exe`，
 界面只通过 AppService 向它发请求。
 
 ```
-UWP 界面（AppContainer）── AppService `arcdeck.host` ──▶ ArcDeck.Host.exe（完整信任）
+UWP 界面（AppContainer）── AppService `saiku.host` ──▶ Saiku.Host.exe（完整信任）
 ```
 
 方向容易写反：**完整信任进程不能当 AppService 的 provider**。UWP 是 provider（服务必须由包声明），
@@ -84,7 +84,7 @@ UWP 界面（AppContainer）── AppService `arcdeck.host` ──▶ ArcDeck.H
 
 ```powershell
 powershell -File uwp\host\publish.ps1        # 产物进 uwp/src/Host/（.gitignore 排除）
-& $msbuild uwp\src\ArcDeck.csproj /p:Configuration=Release /p:Platform=x64
+& $msbuild uwp\src\Saiku.csproj /p:Configuration=Release /p:Platform=x64
 ```
 
 ### 三个非显然的坑
@@ -101,13 +101,13 @@ powershell -File uwp\host\publish.ps1        # 产物进 uwp/src/Host/（.gitign
 
 ```
 已连接
-ping → {"packaged":true,"packageFamilyName":"ProjectArcturius.ArcDeck_…", …}
+ping → {"packaged":true,"packageFamilyName":"ProjectArcturius.Saiku_…", …}
 env  → {"appData":"C:\\Users\\<user>\\AppData\\Roaming", …}
 probe → {"found":true,"command":"dsh --version","exitCode":0,"stdout":"…"}
 ```
 
 `probe` 会真的起一个 `dsh --version` 子进程；`env` 读的是包外的真实路径。
-两半的日志：`%TEMP%\arcdeck-host.log`（进程侧）与 `LocalState\host.log`（UWP 侧）。
+两半的日志：`%TEMP%\saiku-host.log`（进程侧）与 `LocalState\host.log`（UWP 侧）。
 
 **还没做**：界面上的会话/对话仍是示例数据。通道只到「拉起、探活、执行」这一步。
 
@@ -119,15 +119,15 @@ probe → {"found":true,"command":"dsh --version","exitCode":0,"stdout":"…"}
 ```powershell
 $msbuild = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
 
-& $msbuild src\ArcDeck.csproj /t:Restore /p:Configuration=Release /p:Platform=x64
-& $msbuild src\ArcDeck.csproj /p:Configuration=Release /p:Platform=x64
+& $msbuild src\Saiku.csproj /t:Restore /p:Configuration=Release /p:Platform=x64
+& $msbuild src\Saiku.csproj /p:Configuration=Release /p:Platform=x64
 ```
 
 产物：
 
 ```
-src\bin\Release\ArcDeck.exe
-src\AppPackages\ArcDeck_0.1.0.0_x64_Test\ArcDeck_0.1.0.0_x64.msix
+src\bin\Release\Saiku.exe
+src\AppPackages\Saiku_0.1.0.0_x64_Test\Saiku_0.1.0.0_x64.msix
 ```
 
 csproj 里两个非默认项**不要删**：

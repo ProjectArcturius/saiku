@@ -1,6 +1,6 @@
 # 任务书 w3-session-list：会话列表、恢复、改名、历史翻页、真实模型目录
 
-（先读 `C:/Users/mc158/Documents/Projects/arc-deck/tasks/m4/_common.md`，全部条款适用。）
+（先读 `C:/Users/mc158/Documents/Projects/saiku/tasks/m4/_common.md`，全部条款适用。）
 
 ## 前置
 
@@ -23,7 +23,7 @@ w3-session-core 已让 TUI 走 Remote。参考 v1.19.0：`component/dialog-sessi
 ## 验收
 
 ```
-cargo test -p arc-deck-tui --offline
-cargo clippy -p arc-deck-tui --all-targets --offline --no-deps -- -D warnings
-cargo test -p arc-deck-cli --features test-runtime --offline
+cargo test -p saiku-tui --offline
+cargo clippy -p saiku-tui --all-targets --offline --no-deps -- -D warnings
+cargo test -p saiku-cli --features test-runtime --offline
 ```

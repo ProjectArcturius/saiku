@@ -2,7 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>
     /// 应用状态。
@@ -38,7 +38,7 @@ namespace ArcDeck
         /// 号段取「现有最大序号 + 1」而不是 GUID：会话 id 会出现在导航参数里，
         /// 短 id 便于排查，也不会因为重启而变得不可读。
         /// </summary>
-        public Session Create(string workspace = "Projects/arc-deck")
+        public Session Create(string workspace = "Projects/saiku")
         {
             var maxSeq = 0;
             foreach (var s in Sessions)
@@ -120,7 +120,7 @@ namespace ArcDeck
 
         private void Seed()
         {
-            Sessions.Add(Session_ArcDeckIme());
+            Sessions.Add(Session_SaikuIme());
             Sessions.Add(Session_UwpShell());
             Sessions.Add(Session_Perf());
             Sessions.Add(Session_Sokuou());
@@ -140,9 +140,9 @@ namespace ArcDeck
                 Preview = preview,
             };
 
-        private static Session Session_ArcDeckIme()
+        private static Session Session_SaikuIme()
         {
-            var s = Make("s1", "Saiku Deck 骨架与 IME 验证", "Projects/arc-deck",
+            var s = Make("s1", "Saiku Deck 骨架与 IME 验证", "Projects/saiku",
                 DateTimeOffset.Now.AddMinutes(-3), 24,
                 "微软拼音在自研 Win32 事件循环里逐键推进组合串，通路成立。");
 
@@ -164,7 +164,7 @@ namespace ArcDeck
 
             s.Messages.Add(ChatMessage.Theirs(
                 "三个缺陷叠加，而且都不报错：重绘请求恒假、组合串从未转发给 App、IME 消息被吞掉没交回系统。")
-                .WithTool("pwsh", "> cargo test -p arc-deck-shell\ntest result: ok. 21 passed; 0 failed; 0 ignored\n\n> window-shot.exe flat1.png\n已写出 flat1.png（1038×808 RGB PNG）")
+                .WithTool("pwsh", "> cargo test -p saiku-shell\ntest result: ok. 21 passed; 0 failed; 0 ignored\n\n> window-shot.exe flat1.png\n已写出 flat1.png（1038×808 RGB PNG）")
                 .At("14:05 · 18.4s · 6 轮 · 1 次工具调用"));
 
             return s;
@@ -172,7 +172,7 @@ namespace ArcDeck
 
         private static Session Session_UwpShell()
         {
-            var s = Make("s2", "UWP 客户端骨架", "Projects/arc-deck",
+            var s = Make("s2", "UWP 客户端骨架", "Projects/saiku",
                 DateTimeOffset.Now.AddMinutes(-12), 41,
                 "NavigationView 外壳 + 五个页面，控件与外观全部走平台默认。");
 
@@ -198,7 +198,7 @@ namespace ArcDeck
 
         private static Session Session_Perf()
         {
-            var s = Make("s3", "流式排版性能实测", "Projects/arc-deck",
+            var s = Make("s3", "流式排版性能实测", "Projects/saiku",
                 DateTimeOffset.Now.AddHours(-1), 8,
                 "两万字符冷启动：断行 0.142ms、塑形 4.313ms、光栅化 32.192ms。");
 
@@ -250,7 +250,7 @@ namespace ArcDeck
 
         private static Session Session_UwpDeploy()
         {
-            var s = Make("s5", "UWP 部署：签名与信任链", "Projects/arc-deck",
+            var s = Make("s5", "UWP 部署：签名与信任链", "Projects/saiku",
                 DateTimeOffset.Now.AddDays(-2), 33,
                 "0x8027025B 查了半天，根因是自签名证书没进受信任根。");
 

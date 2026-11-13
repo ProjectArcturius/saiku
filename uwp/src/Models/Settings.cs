@@ -2,7 +2,7 @@ using System;
 using Windows.Storage;
 using Windows.UI.Xaml;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>主题偏好。</summary>
     public enum AppTheme

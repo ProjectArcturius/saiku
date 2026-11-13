@@ -123,12 +123,12 @@ static class Program
             Console.WriteLine("缺的这一步需要管理员权限，本会话做不到：");
             Console.WriteLine();
             Console.WriteLine("    # 以管理员身份开一个 PowerShell，跑：");
-            Console.WriteLine($"    Export-Certificate -Cert (Get-ChildItem Cert:\\CurrentUser\\My\\{cert.Thumbprint}) -FilePath ArcDeck.cer");
-            Console.WriteLine("    Import-Certificate -FilePath ArcDeck.cer -CertStoreLocation Cert:\\LocalMachine\\Root");
+            Console.WriteLine($"    Export-Certificate -Cert (Get-ChildItem Cert:\\CurrentUser\\My\\{cert.Thumbprint}) -FilePath Saiku.cer");
+            Console.WriteLine("    Import-Certificate -FilePath Saiku.cer -CertStoreLocation Cert:\\LocalMachine\\Root");
             Console.WriteLine();
             Console.WriteLine("    # 然后回来跑：");
             Console.WriteLine("    Add-AppxPackage -Path <msix>");
-            Console.WriteLine("    Start-Process \"shell:appsFolder\\ProjectArcturius.ArcDeck_<hash>!App\"");
+            Console.WriteLine("    Start-Process \"shell:appsFolder\\ProjectArcturius.Saiku_<hash>!App\"");
         }
     }
 

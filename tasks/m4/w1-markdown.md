@@ -1,16 +1,16 @@
 # 任务书 w1-markdown：助手正文的 Markdown 渲染
 
 （先读同目录 `_common.md` 的通用约定，它的全部条款适用于本任务。路径：
-`C:/Users/mc158/Documents/Projects/arc-deck/tasks/m4/_common.md`）
+`C:/Users/mc158/Documents/Projects/saiku/tasks/m4/_common.md`）
 
 ## 背景
 
-`crates/arc-deck-tui/src/view.rs` 里的 `fn markdown` 只认 fenced code 与 `#` 开头的行，其余原样输出。
+`crates/saiku-tui/src/view.rs` 里的 `fn markdown` 只认 fenced code 与 `#` 开头的行，其余原样输出。
 PRODUCT_PLAN §7.3「消息」要求助手 Markdown/代码正确呈现。依赖 `pulldown-cmark` 已经加好。
 
 ## 要做的
 
-1. 新建 `crates/arc-deck-tui/src/markdown.rs`：
+1. 新建 `crates/saiku-tui/src/markdown.rs`：
    - `pub(crate) struct MarkdownPalette`：本模块需要的全部颜色（至少：text、muted、heading、link、link_text、
      code（行内）、code_block_fg、code_block_bg、block_quote、emph、strong、list_marker、hr）。
      **调色板由调用方传入**，模块自己不读 `Theme` —— 另一个工人正在重写主题系统，解耦才不会冲突。

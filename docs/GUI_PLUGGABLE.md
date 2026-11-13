@@ -6,7 +6,7 @@
 
 ## 0. 一句话
 
-**GUI 不链接后端，只说一份带版本的消息协议**（`arc_deck_core::service`）。后端是 `saiku` 本身，GUI 是另一个可独立安装、
+**GUI 不链接后端，只说一份带版本的消息协议**（`saiku_core::service`）。后端是 `saiku` 本身，GUI 是另一个可独立安装、
 升级、卸载的程序；它拉起 `saiku serve --stdio`（已实现），或连上一个共享的 `saiku serve` socket（设计，未实现）。
 这份协议 **TUI 每天都在进程内用**，所以它不是纸面契约。
 
@@ -14,7 +14,7 @@
 
 | 编号 | 性质 | 怎么验收 | 现状 |
 |---|---|---|---|
-| H1 | 后端不依赖任何 GUI；GUI 不链接后端代码，只经进程边界 | `saiku` 构建图里没有 GUI crate；GUI 的依赖里没有 `arc-deck-dsh` | ✅ 后端侧成立；GUI 侧在接线时由 Cargo / csproj 依赖守住 |
+| H1 | 后端不依赖任何 GUI；GUI 不链接后端代码，只经进程边界 | `saiku` 构建图里没有 GUI crate；GUI 的依赖里没有 `saiku-dsh` | ✅ 后端侧成立；GUI 侧在接线时由 Cargo / csproj 依赖守住 |
 | H2 | GUI 独立构建、发布、升级、卸载，不重装后端，反之亦然 | 换一个版本的 GUI 连同一个 `saiku` 能用；协议主版本不同时明确拒绝 | ⚠️ 协议与握手已实现并有测试；两个真 GUI 还没接 |
 | H3 | GUI 随时连上 / 断开，不丢会话 | 关掉 GUI 再开，`/sessions` 能打开刚才的会话、历史完整 | ✅ 会话在独立的 DSH home，**跨进程恢复已在 TUI 真终端实测**（M4_PLAN） |
 | H4 | 多个前端（TUI + GUI）同时连同一个后端、看同一个会话 | 两个前端同时打开同一会话，一边发、另一边实时看到 | ❌ 需要共享 socket（§3 第二档），未实现；现在第二个后端会被会话目录锁**明确拒绝** |
@@ -27,15 +27,15 @@ H4 之所以重要：交互内核独占一份 DSH home（`launch::HomeLock`）�
 
 ```text
  TUI（ratatui，进程内）────────┐
-                              │  arc_deck_core::service::{Command, Event}   ← 唯一契约，serde JSON
+                              │  saiku_core::service::{Command, Event}   ← 唯一契约，serde JSON
  Windows GUI ─ UWP 界面        │
      │ AppService（ValueSet）  │
      ▼                        │
-   ArcDeck.Host.exe ──stdio──▶├─ saiku serve --stdio      （已实现）
+   Saiku.Host.exe ──stdio──▶├─ saiku serve --stdio      （已实现）
                               │  saiku serve（共享 socket）（设计）
  Linux GUI（Kanesumi）─stdio──┘
                               ▼
-          arc_deck_dsh::remote::service（独占一个交互内核、管 follow、合并流式推送）
+          saiku_dsh::remote::service（独占一个交互内核、管 follow、合并流式推送）
                               ▼
           DSH web 内核（`--profile web`，独立 DSH home，不是 Desktop 的）
 ```
@@ -50,7 +50,7 @@ GUI 直连它最省事，但那样 GUI 就要懂 `assistant-stream`、权威全�
 
 ## 3. 传输：两档
 
-### 第一档 · `saiku serve --stdio`（已实现，`crates/arc-deck-cli/src/serve.rs`）
+### 第一档 · `saiku serve --stdio`（已实现，`crates/saiku-cli/src/serve.rs`）
 
 GUI 进程拉起 `saiku serve --stdio [--permission L] [--workspace D]`，一行一条 JSON：
 
@@ -102,7 +102,7 @@ Rust 侧 `tokio::net::windows::named_pipe` 与 `tokio::net::UnixListener` 都在
 
 ## 4. Windows：UWP 界面 + 完整信任伴随进程
 
-结构沿用已实测的备选 A（HOST_VALIDATION §七）：UWP（AppContainer）只管显示，`ArcDeck.Host.exe`（包内完整信任，.NET 9）
+结构沿用已实测的备选 A（HOST_VALIDATION §七）：UWP（AppContainer）只管显示，`Saiku.Host.exe`（包内完整信任，.NET 9）
 起子进程、读包外路径。接后端的方式：
 
 1. Host.exe 用 `Process`（`CreateNoWindow`、重定向三条流）拉起 `saiku serve --stdio`，**它**说协议（`System.Text.Json`），
@@ -120,7 +120,7 @@ Rust 侧 `tokio::net::windows::named_pipe` 与 `tokio::net::UnixListener` 都在
 
 ## 5. Linux（Arch）：Kanesumi
 
-1. 单独的二进制（建议名 `saiku-deck`），只依赖 `arc-deck-core`（为了那几个 serde 类型）—— **不依赖 `arc-deck-dsh`**，
+1. 单独的二进制（建议名 `saiku-deck`），只依赖 `saiku-core`（为了那几个 serde 类型）—— **不依赖 `saiku-dsh`**，
    由 Cargo 依赖图守住 H1。即便同为 Rust、能直接链接，也走进程边界（PRODUCT_PLAN §8 已定）。
 2. 拉起 PATH 上的 `saiku serve --stdio`；第二档做完后先连 `$XDG_RUNTIME_DIR/saiku/service.sock`。
 3. K1–K9 照旧（不用 winit、自管 IME……）。Kanesumi 的 Wayland 外壳与 IME 进展在 Ether 侧，接线排在它之后。

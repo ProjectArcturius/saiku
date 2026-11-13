@@ -3,7 +3,7 @@
 上一个工人在做本任务时因**磁盘写满（ENOSPC）**中断，进程已退出。磁盘已清出空间。
 **它的进度都还在你的工作区里，没有提交**。
 
-1. 先读原任务书：`C:/Users/mc158/Documents/Projects/arc-deck/tasks/m4/w1-markdown.md`（它引用的 `_common.md` 等全部条款仍然适用）。
+1. 先读原任务书：`C:/Users/mc158/Documents/Projects/saiku/tasks/m4/w1-markdown.md`（它引用的 `_common.md` 等全部条款仍然适用）。
 2. 再看已做的：`git status`、`git diff`，新文件直接读。判断哪些已完成、哪些半截、哪些没开始。
 3. 在已有进度上**接着做完**原任务书的全部要求；不要推倒重来，也不要为了省事删掉上一个工人写好的测试。
    发现上一个工人写错的地方可以改，在最终回复里说明。

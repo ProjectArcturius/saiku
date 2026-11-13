@@ -19,7 +19,7 @@ with tarfile.open(source) as archive:
     names = archive.getnames()
     assert all(n.startswith('saiku-1.0.0/') and '..' not in Path(n).parts for n in names)
     assert not any(n.split('/')[1] in {'REFS', '.git', 'target', '.cargo'} for n in names)
-    for required in ['Cargo.toml', 'Cargo.lock', 'agents/echo.md', 'prompts/echo-style.md', 'docs/LINUX_RELEASE.md', 'packaging/debian/build.sh', 'crates/arc-deck-dsh/src/remote/daily.rs']:
+    for required in ['Cargo.toml', 'Cargo.lock', 'agents/echo.md', 'prompts/echo-style.md', 'docs/LINUX_RELEASE.md', 'packaging/debian/build.sh', 'crates/saiku-dsh/src/remote/daily.rs']:
         assert f'saiku-1.0.0/{required}' in names, required
 with tarfile.open(dist / 'saiku-1.0.0-aur.tar.gz') as archive:
     for name in ['saiku-aur/PKGBUILD', 'saiku-aur/.SRCINFO']:

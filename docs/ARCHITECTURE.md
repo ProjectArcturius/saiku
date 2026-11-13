@@ -6,17 +6,17 @@
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│ arc-deck-ui       会话 / 工具卡片 / 轨迹 / 文件树        │  ← 尚未建立
+│ saiku-ui       会话 / 工具卡片 / 轨迹 / 文件树        │  ← 尚未建立
 ├─────────────────────────────────────────────────────────┤
-│ arc-deck-dsh      DSH 协议客户端（HTTP + WebSocket）      │  ← 尚未建立
+│ saiku-dsh      DSH 协议客户端（HTTP + WebSocket）      │  ← 尚未建立
 │                   只消费 App trait，不碰平台层            │
 ├─────────────────────────────────────────────────────────┤
-│ arc-deck-shell    App trait / Scene / Input / ImeState   │  ← 已建立
+│ saiku-shell    App trait / Scene / Input / ImeState   │  ← 已建立
 │                   平台无关 + cfg(windows) 外壳            │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**依赖方向严格单向。** 尤其：`arc-deck-dsh` **不碰平台层任何东西** —— 它只认识
+**依赖方向严格单向。** 尤其：`saiku-dsh` **不碰平台层任何东西** —— 它只认识
 `Scene` 与 `InputEvent`。这带来两个直接好处：
 
 1. DSH 协议客户端的改动**不可能**破坏 Windows 外壳
@@ -149,4 +149,4 @@ Cargo 的 git 依赖天然**按 crate 选择**且支持 `subdirectory`。submodu
 3. 软件光栅化器（替掉 GDI 参考实现，顺带实装裁剪与 `Arc`/`Image`）
 4. 接入 `kanesumi-canvas` 的 `TextEngine`（真实塑形 / 断行 / BiDi）
 5. 接入 `kanesumi-controls`（48 个控件）
-6. `arc-deck-dsh`：DSH 协议客户端
+6. `saiku-dsh`：DSH 协议客户端

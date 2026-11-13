@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>
     /// 一个可供模型调用的工具。

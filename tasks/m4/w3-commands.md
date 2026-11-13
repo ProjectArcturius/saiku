@@ -1,10 +1,10 @@
 # 任务书 w3-commands：命令系统（action 注册表、键位、slash 补全、命令面板、帮助）
 
-（先读 `C:/Users/mc158/Documents/Projects/arc-deck/tasks/m4/_common.md`，全部条款适用。）
+（先读 `C:/Users/mc158/Documents/Projects/saiku/tasks/m4/_common.md`，全部条款适用。）
 
 ## 背景
 
-PRODUCT_PLAN §7.3「命令与选择」、§7.4（**先读全文**）。现状：`crates/arc-deck-tui/src/app.rs` 有一张 `COMMANDS` 表和
+PRODUCT_PLAN §7.3「命令与选择」、§7.4（**先读全文**）。现状：`crates/saiku-tui/src/app.rs` 有一张 `COMMANDS` 表和
 `Ctrl+P` 面板、`Ctrl+X` leader 的几个键，但键位是在 `handle_key` 里手写匹配的，slash 只在提交时识别，没有补全、没有帮助、
 没有上下文解析，§7.4 列的命令也不全。
 
@@ -41,7 +41,7 @@ PRODUCT_PLAN §7.3「命令与选择」、§7.4（**先读全文**）。现状�
 ## 验收
 
 ```
-cargo test -p arc-deck-tui --offline
-cargo clippy -p arc-deck-tui --all-targets --offline --no-deps -- -D warnings
-cargo test -p arc-deck-cli --features test-runtime --offline
+cargo test -p saiku-tui --offline
+cargo clippy -p saiku-tui --all-targets --offline --no-deps -- -D warnings
+cargo test -p saiku-cli --features test-runtime --offline
 ```

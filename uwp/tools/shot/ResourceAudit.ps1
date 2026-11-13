@@ -20,7 +20,7 @@
     powershell.exe -File ResourceAudit.ps1
 #>
 param(
-  [string]$ProjectRoot = "C:\Users\mc158\Documents\Projects\arc-deck\uwp\src"
+  [string]$ProjectRoot = "C:\Users\mc158\Documents\Projects\saiku\uwp\src"
 )
 
 $platform = "C:\Program Files (x86)\Windows Kits\10\DesignTime\CommonConfiguration\Neutral\UAP\10.0.22621.0\Generic\themeresources.xaml"

@@ -1,12 +1,12 @@
 # 任务书 w3-tui-input：输入区达到日常可用（@文件、历史、粘贴、换行键、外部编辑器）
 
-（先读 `C:/Users/mc158/Documents/Projects/arc-deck/tasks/m4/_common.md`，全部条款适用。）
+（先读 `C:/Users/mc158/Documents/Projects/saiku/tasks/m4/_common.md`，全部条款适用。）
 
 ## 前置
 
 w3-commands 已做出通用补全弹层（触发字符 + 候选提供者）。规格：PRODUCT_PLAN §7.3「输入框」、§7.4 的提交 / 换行键。
 参考 v1.19.0：`component/prompt/index.tsx`、`autocomplete.tsx`（`@` 部分）、`history.tsx`、`frecency.tsx`、`stash.tsx`、
-`local-attachment.ts`、`prompt/part.ts`、`prompt/display.ts`。现有：`crates/arc-deck-tui/src/editor.rs`（字素级编辑）。
+`local-attachment.ts`、`prompt/part.ts`、`prompt/display.ts`。现有：`crates/saiku-tui/src/editor.rs`（字素级编辑）。
 
 ## 要做的
 
@@ -31,7 +31,7 @@ w3-commands 已做出通用补全弹层（触发字符 + 候选提供者）。�
 ## 验收
 
 ```
-cargo test -p arc-deck-tui --offline
-cargo clippy -p arc-deck-tui --all-targets --offline --no-deps -- -D warnings
-cargo test -p arc-deck-cli --features test-runtime --offline
+cargo test -p saiku-tui --offline
+cargo clippy -p saiku-tui --all-targets --offline --no-deps -- -D warnings
+cargo test -p saiku-cli --features test-runtime --offline
 ```

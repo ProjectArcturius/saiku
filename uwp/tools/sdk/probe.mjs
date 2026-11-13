@@ -5,7 +5,7 @@
 // 的真实帧打出来，C# 侧就有一个可对照的基线。
 //
 // 用法：
-//   node arc-deck/tools/sdk-probe.mjs "<提示词>" [工作目录]
+//   node saiku/tools/sdk-probe.mjs "<提示词>" [工作目录]
 //
 // 需要环境里能找到 dsh 的安装位置；默认取 DSH Desktop 自带的副本。
 

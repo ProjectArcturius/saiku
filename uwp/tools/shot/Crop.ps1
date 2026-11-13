@@ -6,7 +6,7 @@
   shape unmistakable (filled MDL2 shape vs thin Fluent outline).
 
   Usage:
-    powershell.exe -File Crop.ps1 -Element "Projects/arc-deck" -Shot shot.png -Out crop.png
+    powershell.exe -File Crop.ps1 -Element "Projects/saiku" -Shot shot.png -Out crop.png
     powershell.exe -File Crop.ps1 -Element "Saiku Deck 骨架与 IME 验证" -Shot shot.png -Out crop.png -Pad 8 -Zoom 8
 #>
 param(

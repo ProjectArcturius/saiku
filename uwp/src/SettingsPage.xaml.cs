@@ -1,11 +1,11 @@
 using System;
 using System.Text;
 using System.Threading.Tasks;
-using ArcDeck.Services;
+using Saiku.Services;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>设置页。</summary>
     public sealed partial class SettingsPage : Page
@@ -64,7 +64,7 @@ namespace ArcDeck
                     HostResultText.Text =
                         "伴随进程没有连上来。\n" +
                         "UWP 侧日志：" + HostBridge.LogPath + "\n" +
-                        "进程侧日志：%TEMP%\\arcdeck-host.log";
+                        "进程侧日志：%TEMP%\\saiku-host.log";
                     return;
                 }
 

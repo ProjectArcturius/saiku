@@ -4,7 +4,7 @@
   "runtime": {
     "kind": "dsh-sdk",
     "node": "node",
-    "entry": "C:/arcdeck/runtime/dsh-0.2.1-alpha.2/node_modules/@deepseek-ai/dsh/lib/bin.js",
+    "entry": "C:/saiku/runtime/dsh-0.2.1-alpha.2/node_modules/@deepseek-ai/dsh/lib/bin.js",
     "version": "0.2.1-alpha.2",
     "profile": "sdk",
     "route": {
@@ -27,7 +27,7 @@
     "sandbox": "workspace-write",
     "session_log_upload": false
   },
-  "state_root": "C:/arc-deck-state",
+  "state_root": "C:/saiku-state",
   "authorization": {
     "workspace": "C:/work/project",
     "profile": "workspace-readonly",
@@ -44,15 +44,15 @@
     ]
   },
   "agents": {
-    "dir": "C:/arc-deck/agents",
-    "prompts_dir": "C:/arc-deck/prompts"
+    "dir": "C:/saiku/agents",
+    "prompts_dir": "C:/saiku/prompts"
   },
   "model": {
     "provider": "opencode-go",
     "model": "deepseek-v4.1-flash"
   },
   "env": {
-    "ARC_DECK_LOG": "info"
+    "SAIKU_LOG": "info"
   },
   "timeouts": {
     "initialize_seconds": 120,

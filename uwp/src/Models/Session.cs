@@ -2,7 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>一个会话。</summary>
     public sealed class Session

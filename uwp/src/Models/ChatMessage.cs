@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>内容段类型。</summary>
     public enum BlockKind

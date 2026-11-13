@@ -32,7 +32,7 @@ $ErrorActionPreference = 'Stop'
 # 少一层得到的是 <repo>\uwp，Join-Path 之后仍是一个合法路径字符串，
 # dotnet 只会报 MSB1009「项目文件不存在」—— 层数错了不会自己暴露。
 $root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSCommandPath)))
-$proj = Join-Path $root 'arc-deck-dsh\src\ArcDeck.Dsh.Cli\ArcDeck.Dsh.Cli.csproj'
+$proj = Join-Path $root 'saiku-dsh\src\Saiku.Dsh.Cli\Saiku.Dsh.Cli.csproj'
 
 if (-not (Test-Path $proj)) {
   throw "找不到项目文件：$proj —— 脚本所在层级与仓结构对不上了"

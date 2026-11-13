@@ -21,20 +21,20 @@ prepare() {
 build() {
   cd "$srcdir/$pkgname-$pkgver"
   export CARGO_TARGET_DIR="$srcdir/target"
-  cargo build --release --locked --offline --no-default-features -p arc-deck-cli
+  cargo build --release --locked --offline --no-default-features -p saiku-cli
 }
 
 check() {
   cd "$srcdir/$pkgname-$pkgver"
   export CARGO_TARGET_DIR="$srcdir/target"
-  cargo test --locked --offline -p arc-deck-core -p arc-deck-dsh -p arc-deck-tui -p arc-deck-cli --features arc-deck-cli/test-runtime
+  cargo test --locked --offline -p saiku-core -p saiku-dsh -p saiku-tui -p saiku-cli --features saiku-cli/test-runtime
 }
 
 package() {
   cd "$srcdir/$pkgname-$pkgver"
   install -Dm755 "$srcdir/target/release/saiku" "$pkgdir/usr/bin/saiku"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-  install -Dm644 crates/arc-deck-tui/LICENSE-OpenCode "$pkgdir/usr/share/licenses/$pkgname/LICENSE-OpenCode"
+  install -Dm644 crates/saiku-tui/LICENSE-OpenCode "$pkgdir/usr/share/licenses/$pkgname/LICENSE-OpenCode"
   install -Dm644 NOTICE "$pkgdir/usr/share/doc/$pkgname/NOTICE"
   install -Dm644 docs/INSTALL.md "$pkgdir/usr/share/doc/$pkgname/INSTALL.md"
 }

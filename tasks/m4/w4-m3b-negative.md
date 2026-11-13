@@ -1,6 +1,6 @@
 # 任务书 w4-m3b-negative：用脚本化假模型端点证明越权工具调用被真实 DSH 拒绝
 
-派工者：claude（或替班 sol）。仓库：arc-deck。独立 worktree。**动 `crates/arc-deck-dsh`（测试支撑）、`crates/arc-deck-cli`（测试）、`docs/M3_GUARD.md`。**
+派工者：claude（或替班 sol）。仓库：saiku。独立 worktree。**动 `crates/saiku-dsh`（测试支撑）、`crates/saiku-cli`（测试）、`docs/M3_GUARD.md`。**
 
 ## 前置（先读）
 
@@ -31,8 +31,8 @@
 ## 验收
 
 ```
-cargo test -p arc-deck-core -p arc-deck-dsh --offline
-cargo test -p arc-deck-cli --features test-runtime --offline
-cargo test -p arc-deck-dsh -p arc-deck-cli --features arc-deck-cli/test-runtime --offline -- --ignored m3_live_
+cargo test -p saiku-core -p saiku-dsh --offline
+cargo test -p saiku-cli --features test-runtime --offline
+cargo test -p saiku-dsh -p saiku-cli --features saiku-cli/test-runtime --offline -- --ignored m3_live_
 ```
 （负例测试以 `m3_live_` 为前缀，需要本机已安装的运行时，所以是 `#[ignore]`。）

@@ -1,11 +1,11 @@
 ## 通用约定（每份 M4 任务书都适用）
 
-派工者：claude。仓库：arc-deck（Rust workspace）。你在一个独立 git worktree 里工作，别的工人同时在改别的 worktree。
+派工者：claude。仓库：saiku（Rust workspace）。你在一个独立 git worktree 里工作，别的工人同时在改别的 worktree。
 
-- **先读**：`AGENTS.md` 顶部「当前产品方向」、`docs/PRODUCT_PLAN.md` §7（TUI 规格）、`crates/arc-deck-tui/src/` 现有代码。
+- **先读**：`AGENTS.md` 顶部「当前产品方向」、`docs/PRODUCT_PLAN.md` §7（TUI 规格）、`crates/saiku-tui/src/` 现有代码。
 - **参考源码**（OpenCode，MIT）不在你的 worktree 里，只能这样读，**只读不改**：
-  `git -C C:/Users/mc158/Documents/Projects/arc-deck/REFS/opencode show v1.19.0:<路径>`（结构与交互基线）
-  `git -C C:/Users/mc158/Documents/Projects/arc-deck/REFS/opencode show v2.0.27:<路径>`（主题语义 token）
+  `git -C C:/Users/mc158/Documents/Projects/saiku/REFS/opencode show v1.19.0:<路径>`（结构与交互基线）
+  `git -C C:/Users/mc158/Documents/Projects/saiku/REFS/opencode show v2.0.27:<路径>`（主题语义 token）
   列文件：`git -C … ls-tree -r --name-only v1.19.0 packages/tui/src`
 - 移植的是**行为与设计**，不是逐行翻译 TSX；Solid/OpenTUI 的写法在 Rust + ratatui 里要按 Rust 的方式表达。
   有意与上游不同的地方，在代码注释里写明理由。
@@ -24,6 +24,6 @@ saiku 按命令字符串认验收，改过的命令会被记为「未执行」�
 
 
 ```
-cargo test -p arc-deck-tui --offline
-cargo clippy -p arc-deck-tui --all-targets --offline --no-deps -- -D warnings
+cargo test -p saiku-tui --offline
+cargo clippy -p saiku-tui --all-targets --offline --no-deps -- -D warnings
 ```

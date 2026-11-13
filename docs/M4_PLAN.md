@@ -80,7 +80,7 @@ PRODUCT_PLAN §7.3 的八个组件、§7.4 的键位与命令、§7.5 的视觉�
 | 检查 | 结果 |
 |---|---|
 | 离线套件 | core 84 + 契约 7 · dsh 108（8 个 live 默认 ignore）· TUI **216** · cli 49 + 43 端到端（`--features test-runtime`）全过 |
-| `cargo clippy -p arc-deck-tui --all-targets -- -D warnings` | ✅ |
+| `cargo clippy -p saiku-tui --all-targets -- -D warnings` | ✅ |
 | 审批通道（我们这侧） | ✅ 真实 WS + 真实 HTTP 假内核：`$events` 开流 → `ready` → `approval/request` → 回答写到 `$events/result`（`clientId`/`eventId`/`allowed-once` 逐字断言） |
 | 审批通道（真内核） | ✅ `remote_live_forwarded_events_stream_is_ready`：0.2.1-alpha.2 上 `$events` 开得起来、首帧 `ready` 带 `clientId`（零配额） |
 | 确认档的补丁 | ✅ 把 `approval: ask` + 预设 `confirm` 写进 patch 后真起一次 web 内核，**stderr 无 `did not activate` / `no preset`**；`--dump-config` 里 `session-query-sqlite` 的 `openAt: first-search` 与 `approval`/`permission` 行都在 |
@@ -166,11 +166,11 @@ PRODUCT_PLAN §7.3 的八个组件、§7.4 的键位与命令、§7.5 的视觉�
 | 检查 | 结果 |
 |---|---|
 | 离线套件 | core 84 + 契约 7 · dsh 110（8 个 live 默认 ignore）· TUI **222** · cli 50 + 43 端到端（`--features test-runtime`）全过，连跑三次 |
-| `cargo clippy -p arc-deck-tui --all-targets` | TUI crate 无告警。**core / cli / dsh 有既有告警**（clippy 1.95 新加的 `collapsible_match` 等，不是这一轮引入的；`-D warnings` 全仓不再成立） |
+| `cargo clippy -p saiku-tui --all-targets` | TUI crate 无告警。**core / cli / dsh 有既有告警**（clippy 1.95 新加的 `collapsible_match` 等，不是这一轮引入的；`-D warnings` 全仓不再成立） |
 | 真终端（release，`console-probe.ps1 -Resume`，零配额） | 内核就绪 · 页脚一行 · 占位符写着 Enter 发送 · `@` 补全 · stash 三步 · F1 · 输入 · `/sessions` · `/runs` · **`/search` 真内核** · `/subagents` · 恢复会话 · 退出 · 无残留内核。`resume_history` 两条判据假定最近一次是 `-Cancel` 留下的会话，本机最近的是用户自己的会话，所以那两条是 false（打开与历史本身在快照里是好的） |
 | 安装 | `~/.cargo/bin/saiku.exe` 换成本轮 release（与 `target-main/release` 逐字节相同）；上一版留在 `saiku.prev-2026-10-20-1015.exe` |
 
-预览：`cargo test -p arc-deck-tui -- generate_reviewable an_agentic` 把各屏写成文本到 `target/tui-preview/`
+预览：`cargo test -p saiku-tui -- generate_reviewable an_agentic` 把各屏写成文本到 `target/tui-preview/`
 （新增 `conversation-*`、`models-*`、`agentic-*`）。**颜色看不出来** —— 满意与否仍要在真终端里看。
 
 ## 第八轮（2026-10-20）：输入框焦点、扫描条、一次 Enter、Agent 颜色
@@ -199,7 +199,7 @@ PRODUCT_PLAN §7.3 的八个组件、§7.4 的键位与命令、§7.5 的视觉�
 
 | 检查 | 结果 |
 |---|---|
-| 离线套件 | TUI **227**、dsh 110、cli 50 + 43 端到端、core 84 + 7 全过；`clippy -p arc-deck-tui` 无告警 |
+| 离线套件 | TUI **227**、dsh 110、cli 50 + 43 端到端、core 84 + 7 全过；`clippy -p saiku-tui` 无告警 |
 | 真终端（release，`console-probe.ps1 -Resume`，零配额） | 20 项全过，含 `one_enter_runs_completion`（真 Enter）、`shift_tab_switches_agent`、`agent_back_to_echo`、`search_real_kernel`、`subagents_dialog`、`resume_history` |
 | 真终端（`-Submit -Cancel`，三次极小调用） | 同一会话两轮 42 → 43 ✅、无错误 ✅、取消后输入区可用 ✅；跑着时页脚快照是 `⬝⬝⬝⬝⬝■■■ … 中断`（扫描条在动）。`scanner_while_running` / `cancel_shown` 两项那一次判 false，是判据的问题（见下），判据已改 |
 
@@ -209,7 +209,7 @@ PRODUCT_PLAN §7.3 的八个组件、§7.4 的键位与命令、§7.5 的视觉�
 
 ## TUI 真终端证据（2026-10-15）
 
-`crates/arc-deck-tui/tools/console-probe.ps1` 起一个**隐藏控制台**、把按键写进它的输入缓冲区、
+`crates/saiku-tui/tools/console-probe.ps1` 起一个**隐藏控制台**、把按键写进它的输入缓冲区、
 再读回屏幕缓冲区 —— 把「在真终端里可用」做成几条可复现的断言。实测（release 二进制）：
 
 | 检查 | 结果 |

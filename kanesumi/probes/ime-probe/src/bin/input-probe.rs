@@ -67,7 +67,7 @@ fn main() {
     // SAFETY: 标准 Win32 查询，句柄使用前判空。
     let hwnd = unsafe { FindWindowW(CLASS_NAME.as_ptr(), std::ptr::null()) };
     if hwnd == 0 {
-        eprintln!("未找到 Saiku Deck 窗口 —— 请先启动 arc-deck-demo.exe");
+        eprintln!("未找到 Saiku Deck 窗口 —— 请先启动 saiku-demo.exe");
         std::process::exit(1);
     }
     if unsafe { IsWindow(hwnd) } == 0 {

@@ -1,6 +1,6 @@
 # 任务书 w3-tool-views：工具调用的完整呈现（diff、shell 输出、折叠、错误）
 
-（先读 `C:/Users/mc158/Documents/Projects/arc-deck/tasks/m4/_common.md`，全部条款适用。）
+（先读 `C:/Users/mc158/Documents/Projects/saiku/tasks/m4/_common.md`，全部条款适用。）
 
 ## 前置
 
@@ -26,6 +26,6 @@ w3-session-core 之后，工具调用经 Remote 进入视图。规格：PRODUCT_
 ## 验收
 
 ```
-cargo test -p arc-deck-tui --offline
-cargo clippy -p arc-deck-tui --all-targets --offline --no-deps -- -D warnings
+cargo test -p saiku-tui --offline
+cargo clippy -p saiku-tui --all-targets --offline --no-deps -- -D warnings
 ```

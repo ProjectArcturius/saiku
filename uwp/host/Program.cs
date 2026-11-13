@@ -1,11 +1,11 @@
 using System.Text.Json;
 
-namespace ArcDeck.Host;
+namespace Saiku.Host;
 
 /// <summary>
 /// Entry point of the full-trust companion. Two modes:
 ///
-///   (no args)     connect to the UWP app's `arcdeck.host` AppService and serve requests
+///   (no args)     connect to the UWP app's `saiku.host` AppService and serve requests
 ///   --selftest    run the same operations locally and print one JSON line per op
 ///
 /// `--selftest` exists so the operations can be tested without a package, a deployment or a
@@ -25,7 +25,7 @@ internal static class Program
                 return SelfTest().GetAwaiter().GetResult();
             }
 
-            var service = Argument(args, "--service") ?? "arcdeck.host";
+            var service = Argument(args, "--service") ?? "saiku.host";
             return AppServiceClient.RunAsync(service).GetAwaiter().GetResult();
         }
         catch (Exception ex)

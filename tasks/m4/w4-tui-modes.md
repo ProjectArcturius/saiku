@@ -1,6 +1,6 @@
 # 任务书 w4-tui-modes：Agent / 模式 / 授权级别 / 审批在 TUI 上接通
 
-（先读 `C:/Users/mc158/Documents/Projects/arc-deck/tasks/m4/_common.md`，全部条款适用。）
+（先读 `C:/Users/mc158/Documents/Projects/saiku/tasks/m4/_common.md`，全部条款适用。）
 
 ## 前置
 
@@ -25,7 +25,7 @@
 ## 验收
 
 ```
-cargo test -p arc-deck-tui --offline
-cargo clippy -p arc-deck-tui --all-targets --offline --no-deps -- -D warnings
-cargo test -p arc-deck-cli --features test-runtime --offline
+cargo test -p saiku-tui --offline
+cargo clippy -p saiku-tui --all-targets --offline --no-deps -- -D warnings
+cargo test -p saiku-cli --features test-runtime --offline
 ```

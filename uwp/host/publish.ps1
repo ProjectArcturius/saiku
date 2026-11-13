@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $out = Join-Path $root "src\Host"
 
-dotnet publish (Join-Path $PSScriptRoot "ArcDeck.Host.csproj") `
+dotnet publish (Join-Path $PSScriptRoot "Saiku.Host.csproj") `
     -c $Configuration -r win-x64 --self-contained false -o $out
 
 if ($LASTEXITCODE -ne 0) {

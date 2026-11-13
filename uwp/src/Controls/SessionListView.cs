@@ -5,7 +5,7 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>
     /// 会话列表。存在的唯一理由是**知道右键点的是哪一行**。

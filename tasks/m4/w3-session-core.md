@@ -1,11 +1,11 @@
 # 任务书 w3-session-core：TUI 的会话改走 Remote（多轮、流式、思考、取消）
 
-（先读 `C:/Users/mc158/Documents/Projects/arc-deck/tasks/m4/_common.md`，全部条款适用。）
+（先读 `C:/Users/mc158/Documents/Projects/saiku/tasks/m4/_common.md`，全部条款适用。）
 
 ## 前置
 
-- `crates/arc-deck-dsh/src/remote/` 与 `docs/REMOTE_0.2.1.md`（w2-remote-transport、w2-remote-session 的成果）。
-- 现状：TUI 每次提交起一个独立的 `saiku run --prompt -`（M4a），没有多轮。`crates/arc-deck-cli/src/tui.rs` 是桥接。
+- `crates/saiku-dsh/src/remote/` 与 `docs/REMOTE_0.2.1.md`（w2-remote-transport、w2-remote-session 的成果）。
+- 现状：TUI 每次提交起一个独立的 `saiku run --prompt -`（M4a），没有多轮。`crates/saiku-cli/src/tui.rs` 是桥接。
 - 规格：PRODUCT_PLAN §7.3 的 Session、输入框、消息三行；§7.1 的「窗口适应、操作逻辑、构图」。
 - 参考 v1.19.0：`routes/session/index.tsx`（构图、消息、滚动、思考折叠）、`routes/session/footer.tsx`、`routes/home.tsx`、
   `util/transcript.ts`、`util/scroll.ts`。
@@ -30,8 +30,8 @@
 ## 验收
 
 ```
-cargo test -p arc-deck-tui --offline
-cargo clippy -p arc-deck-tui --all-targets --offline --no-deps -- -D warnings
-cargo test -p arc-deck-cli --features test-runtime --offline
-cargo test -p arc-deck-cli --features test-runtime --offline -- --ignored tui_live_
+cargo test -p saiku-tui --offline
+cargo clippy -p saiku-tui --all-targets --offline --no-deps -- -D warnings
+cargo test -p saiku-cli --features test-runtime --offline
+cargo test -p saiku-cli --features test-runtime --offline -- --ignored tui_live_
 ```

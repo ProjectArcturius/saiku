@@ -16,7 +16,7 @@ names = set(subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode(
 # Explicit additions only: never scoop up an untracked user's config, key or task state.
 for folder in ['packaging', 'docs']:
     names.update(p.relative_to(root).as_posix() for p in (root / folder).rglob('*') if p.is_file() and '__pycache__' not in p.parts)
-names.add('crates/arc-deck-dsh/src/remote/daily.rs')
+names.add('crates/saiku-dsh/src/remote/daily.rs')
 archive = out / f'saiku-{version}-source.tar.gz'
 with tarfile.open(archive, 'w:gz') as tar:
     for name in sorted(names - {''}):

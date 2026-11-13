@@ -2,9 +2,9 @@
 
 本版发布 `saiku`（TUI + headless），不含冻结中的桌面 GUI。
 
-**从 Arc Deck（`arcdeck`）升级**：先关掉所有正在运行的 `arcdeck`，删掉旧的 `arcdeck.exe`（Cargo 目录或
-`Programs\Arc Deck`）。第一次运行 `saiku` 时，旧的 `arcdeck` 配置、密钥、运行时与会话目录会原地改名为 `saiku`；
-如果旧进程还占着文件，`saiku` 会拒绝启动并说明原因，而不会建一套空目录。环境变量 `ARCDECK_*` 需手动改成 `SAIKU_*`。
+**从 0.x / 旧发布升级**：先关掉所有正在运行的 `saiku`，删掉旧的安装目录（Cargo 目录或 `Programs\Saiku`）。
+第一次运行 `saiku` 时，旧安装留下的用户目录会原地改名为 `saiku`（配置、密钥、运行时与会话一起搬）；
+如果旧进程还占着文件，`saiku` 会拒绝启动并说明原因，而不会建一套空目录。
 
 ## Windows x64
 
@@ -54,7 +54,7 @@ Ctrl+P 命令，`/sessions` 恢复会话，`/reconnect` 重连内核，Ctrl+C �
 维护者在 Arch 构建 AUR/deb 与补传资产的步骤见 [LINUX_RELEASE.md](https://github.com/ProjectArcturius/saiku/blob/main/docs/LINUX_RELEASE.md)。
 
 Arch 本地安装：在生成的 AUR 包目录运行 `makepkg -si`。AUR recipe 准备就绪不代表已经发布到 AUR。
-Debian/Ubuntu：在满足 Node.js >=24 的系统里运行 `sudo apt install ./arc-deck_1.0.0-1_amd64.deb`。
+Debian/Ubuntu：在满足 Node.js >=24 的系统里运行 `sudo apt install ./saiku_1.0.0-1_amd64.deb`。
 deb 必须在 Debian 构建容器中生成，不要直接打包 Arch 的动态链接二进制。
 
 ## 排障与数据位置

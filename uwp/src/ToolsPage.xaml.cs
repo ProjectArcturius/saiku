@@ -5,7 +5,7 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>工具页。左清单右详情。</summary>
     public sealed partial class ToolsPage : Page

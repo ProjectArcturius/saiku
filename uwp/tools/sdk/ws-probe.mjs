@@ -10,9 +10,9 @@
 //   3. 端点名（`/api/...`）怎么枚举
 //
 // 用法：
-//   node arc-deck-probe.mjs ws            # 连 ws://127.0.0.1:43129/api/remote.mux
-//   node arc-deck-probe.mjs ws <url>      # 指定地址
-//   node arc-deck-probe.mjs http          # 列 HTTP 路由的鉴权行为
+//   node saiku-probe.mjs ws            # 连 ws://127.0.0.1:43129/api/remote.mux
+//   node saiku-probe.mjs ws <url>      # 指定地址
+//   node saiku-probe.mjs http          # 列 HTTP 路由的鉴权行为
 
 const mode = process.argv[2] ?? "ws";
 const base = process.argv[3] ?? process.env.DSH_WEB_URL ?? "http://127.0.0.1:43129";

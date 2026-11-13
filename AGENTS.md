@@ -15,13 +15,13 @@ DSH 对非 DS 模型是否适用的调查：[docs/DSH_FINDINGS.md](docs/DSH_FIND
 不可让渡的规则与「什么算个性化」：[prompts/constitution.md](prompts/constitution.md)（草案）。
 TUI 派工计划与状态（**队列 2026-10-14 起暂停**）：[docs/M4_PLAN.md](docs/M4_PLAN.md)；派工手册：[tasks/m4/README.md](tasks/m4/README.md)。
 授权 → DSH 执行层的映射与缺口：[docs/M3_GUARD.md](docs/M3_GUARD.md)。DSH 0.2.1 Remote 层的协议核对：[docs/REMOTE_0.2.1.md](docs/REMOTE_0.2.1.md)。
-GUI 怎么热插拔地研发与发布（Windows + Linux）：[docs/GUI_PLUGGABLE.md](docs/GUI_PLUGGABLE.md)。用 saiku 工人替代 OpenCode 工人的复盘：[docs/ARCDECK_WORKERS_REVIEW_2026-10-14.md](docs/ARCDECK_WORKERS_REVIEW_2026-10-14.md)。
+GUI 怎么热插拔地研发与发布（Windows + Linux）：[docs/GUI_PLUGGABLE.md](docs/GUI_PLUGGABLE.md)。用 saiku 工人替代 OpenCode 工人的复盘：[docs/SAIKU_WORKERS_REVIEW_2026-10-14.md](docs/SAIKU_WORKERS_REVIEW_2026-10-14.md)。
 
 - **2026-10-14 补记**：用户随后要求用 saiku 工人把 TUI 做到日常可用，W1（Markdown / 主题 / 模型对话框）与 M3 第一段已合入；同日暂停派工，下一步重心转 GUI，剩余 TUI 队列可由替班按手册继续。**本机 C 盘已满：worktree、TEMP、构建输出都在 D 盘**（见 tasks/m4/README.md）。
 - **当前焦点只有一件事：Rust 后端的 headless 在 Ether 上可用**（PRODUCT_PLAN M2a–M2c）。TUI 主流程已可用（M4 只差 §7.5 的人工视觉对照）；两个桌面 GUI 冻结。
 - 一个可执行文件 `saiku`：工作目录下无参数运行进 TUI，带子命令进 headless。headless 的主用法是 Ether 的工人任务书；调度者靠 `saiku status` 一行 + 退出码判断「完成 / 在跑 / 卡死 / 出错」，不读长日志。健康由读者按时间戳计算，进程死了不能自称健康。
 - **底层只用 DSH 一个内核**：DS 走 `deepseek-official`（Messages 协议，DS 优势只在官方路由上成立），非 DS 走 DSH 的 pi-ai 路由。不再造 OpenCode/Claude 的执行内核；它们只作 TUI、Agent、工具定义的设计参考。「非 DS 用 DSH 不劣于 OpenCode」未测，是 M2d 的对照门。
-- **仓库主许可证是 Apache-2.0**（根 `LICENSE`，第三方归属见 `NOTICE`）。**TUI 的视觉与交互基线来自 OpenCode**（v1.19.0；主题资产取自 v2.0.27），不是原创视觉。直接移植或逐字取用的代码、主题必须保留 MIT notice（`crates/arc-deck-tui/LICENSE-OpenCode`），并在文件头标明来源。OpenCode 只是参考与移植来源，不是第二执行内核。
+- **仓库主许可证是 Apache-2.0**（根 `LICENSE`，第三方归属见 `NOTICE`）。**TUI 的视觉与交互基线来自 OpenCode**（v1.19.0；主题资产取自 v2.0.27），不是原创视觉。直接移植或逐字取用的代码、主题必须保留 MIT notice（`crates/saiku-tui/LICENSE-OpenCode`），并在文件头标明来源。OpenCode 只是参考与移植来源，不是第二执行内核。
 - 桌面版两块：Windows = C# + WinUI 2（不擅自换 WinUI 3 或 WebView），Linux = Rust + Kanesumi。都在后端本地服务（M5）之后经同一 IPC 接入。
 - 默认 Agent 是 Echo，具备完整工程角色、工具/权限、验证/交付纪律与用户提供的风格；Build/Plan 参考 OpenCode。提示词不能替代实际权限。
 - DSH 默认把会话日志随请求上传 DeepSeek（`session-log-deepseek`）。用户裁定前，Saiku 生成的 profile 关闭它；不吃 DSH 默认值。
@@ -66,7 +66,7 @@ saiku report <id>          # 终态后：Saiku 采集的事实与模型的陈述
 ```
 kanesumi/       Rust + 自绘 Scene（跨平台，无 WebView）   based on Kanesumi Design
 uwp/            C# + WinUI 2（Windows 专属）              用微软自家的接口与套件
-arc-deck-dsh/   与内核说话的协议层（C# / .NET 9，桌面进程）  两个实现都要用它
+saiku-dsh/   与内核说话的协议层（C# / .NET 9，桌面进程）  两个实现都要用它
 ```
 
 **两个实现代码不共享，外观也不共享。** 它们是同一个客户端的两条实现路线：
@@ -76,14 +76,14 @@ arc-deck-dsh/   与内核说话的协议层（C# / .NET 9，桌面进程）  两
 | 外观 | 自定 —— Kanesumi Design | **跟系统走**（唯一例外：圆角归零，见 U3） |
 | 理由 | 跨平台一致性 | 用平台现成的基础设施 |
 
-这两条 GUI 当时属于 **Arc Deck**，现统称 **Saiku Deck**（命名见文首）。
+这两条 GUI 当时属于 **Saiku**，现统称 **Saiku Deck**（命名见文首）。
 设计正典（**只与 `kanesumi/` 相关**）：
 [Ether `docs/KANESUMI_DESIGN.md`](https://github.com/ProjectArcturius/Ether/blob/main/docs/KANESUMI_DESIGN.md)。
 
 > 不要把 Kanesumi 的东西搬进 `uwp/`，也不要拿 `uwp/` 的平台行为去改
 > Kanesumi 的规格。两者的**唯一**交集是「同一个客户端」这个目标。
 
-### P · `arc-deck-dsh/` —— 既有 C# 共用协议层的历史约束
+### P · `saiku-dsh/` —— 既有 C# 共用协议层的历史约束
 
 界面两条路线不共享，但**协议只有一份**：事件词汇、翻译规则、上游版本钉法，
 两边读到的东西必须逐字一致。所以它单独成目录，而不是塞进任一实现里。
@@ -92,7 +92,7 @@ arc-deck-dsh/   与内核说话的协议层（C# / .NET 9，桌面进程）  两
 
 这一条是 UWP 版的**结构性**约束，不是取舍：
 
-| 需要的能力 | `uwp/src/ArcDeck.csproj`（`OutputType=AppContainerExe`） |
+| 需要的能力 | `uwp/src/Saiku.csproj`（`OutputType=AppContainerExe`） |
 |---|---|
 | 起 `dsh` 子进程 | ❌ AppContainer 无 `CreateProcess` |
 | 读 `%APPDATA%\dsh-desktop\harness`（凭据、会话日志） | ❌ 包外路径不可读 |
@@ -103,7 +103,7 @@ UWP 版目前的界面本身是好的（会话列表、Markdown、工具页、�
 但它无法自己拿到数据 —— 这是两件独立的事，不要混为一谈。
 
 **旧路线的下一步**（未实施，现由 PRODUCT_PLAN 取代）：界面外壳换成完整信任的桌面进程，
-`arc-deck-dsh` 作为它的引用；UWP 版作为「无内核也能看的界面」保留。
+`saiku-dsh` 作为它的引用；UWP 版作为「无内核也能看的界面」保留。
 
 #### P2 · 上游版本只能**钉**，问不出来
 
@@ -424,7 +424,7 @@ DSH Desktop 正在跑时，两个内核会碰同一份 `DSH_HOME`。
 `smithay-client-toolkit` + `calloop` 自研事件循环；Windows 侧照此办理，
 **自己写 Win32 消息泵**。不要引入 winit，也不要引入任何自管 IME 的框架。
 
-### K2 · 全仓唯一允许裸 FFI 的地方是 `kanesumi/crates/arc-deck-shell/src/platform/win32.rs`
+### K2 · 全仓唯一允许裸 FFI 的地方是 `kanesumi/crates/saiku-shell/src/platform/win32.rs`
 
 新增 Win32 绑定时加在那里。`platform/mod.rs` 里只应有事件翻译与生命周期 ——
 让消息泵逻辑保持可读，FFI 表面收敛到一处可审计。
@@ -763,7 +763,7 @@ $(if ($inside) { "在窗口内 ✓" } else { … })
 | 症状 | 真正的原因 |
 |---|---|
 | 对 `ListItem` 取 `InvokePattern` 报 `Unsupported Pattern` | ListView 的行是 `SelectionItemPattern`；要**往上找**第一个能应答的元素（`Uia.ps1` 的 `Get-Actionable` 是对的） |
-| 「最后一条里没有刚发出的文本」但界面明明有 | `ListItem` 自身的 `Name` 是**数据对象的类型名**（`ArcDeck.ChatMessage`），正文在它**子树**的 `Text` 元素里 |
+| 「最后一条里没有刚发出的文本」但界面明明有 | `ListItem` 自身的 `Name` 是**数据对象的类型名**（`Saiku.ChatMessage`），正文在它**子树**的 `Text` 元素里 |
 
 **对照实验与断言之间要确认「读的是同一个东西」。** 这两个都表现为
 「功能坏了」，而功能是好的 —— 与 U13 同类，只是错在元素层次而不是坐标空间。
@@ -771,7 +771,7 @@ $(if ($inside) { "在窗口内 ✓" } else { … })
 ### U18 · 完整信任伴随进程：方向、拉起顺序与生命周期
 
 UWP 的 AppContainer 起不了 `dsh`、读不到包外路径（P1）。现在由包内
-`Host\ArcDeck.Host.exe`（完整信任）承担执行与文件访问，界面经 AppService 与它说话。
+`Host\Saiku.Host.exe`（完整信任）承担执行与文件访问，界面经 AppService 与它说话。
 
 1. **provider 必须是 UWP**（服务只能由包声明）；伴随进程是 client，用自己的包身份
    `OpenAsync` 连回来 —— 完整信任进程**不能**当 provider。
@@ -856,10 +856,10 @@ SDK 里 152 处引用、0 处定义。
 | `kanesumi/` GDI 参考渲染器 | ⚠️ 缺 `Arc`/`Triangle`/`Image`，裁剪为空 |
 | `kanesumi/` 文本排版 | ⚠️ `HeuristicTextEngine` 是占位，不得用于最终排版决策 |
 | `kanesumi/` 无障碍 | ❌ 完全没有（`Scene` 是纯绘制命令，没有无障碍树） |
-| **TUI 真终端可用性** | ✅ **已实测**（`crates/arc-deck-tui/tools/console-probe.ps1`，隐藏控制台 + 写按键 + 读屏幕）：交互内核就绪 / `@` / 帮助 / `/sessions` / `/runs` / **同一会话两轮（42 → 43）** / Esc 取消这一轮 / **跨进程恢复会话** / 退出后无残留内核；第七轮（密度照 OpenCode 收）后加测 stash / `/search` 真内核 / `/subagents`；第八轮补输入框底色 / 扫描条 / 一次 Enter / Agent 颜色；**227 个 TUI 测试**，见 [M4_PLAN 第七、八轮](docs/M4_PLAN.md) |
+| **TUI 真终端可用性** | ✅ **已实测**（`crates/saiku-tui/tools/console-probe.ps1`，隐藏控制台 + 写按键 + 读屏幕）：交互内核就绪 / `@` / 帮助 / `/sessions` / `/runs` / **同一会话两轮（42 → 43）** / Esc 取消这一轮 / **跨进程恢复会话** / 退出后无残留内核；第七轮（密度照 OpenCode 收）后加测 stash / `/search` 真内核 / `/subagents`；第八轮补输入框底色 / 扫描条 / 一次 Enter / Agent 颜色；**227 个 TUI 测试**，见 [M4_PLAN 第七、八轮](docs/M4_PLAN.md) |
 | **TUI 工具视图与模式** | ✅ 代码 + 夹具实测：按类别的工具摘要、着色 diff、折叠态可见失败、全屏查看器（`/diff` `/output`）；§7.4 六种模式转换、运行中先确认、Plan 在执行层只读（`policy_for` 单测：写范围清空 / shell 行摘掉）。子 agent 会话经 `/subagents` 打开（父地址由服务配，**从工具块直接进入未做**）；**鼠标点选不做**（用户裁定纯键盘，鼠标只留滚轮，复制用 `/copy`） |
 | **confirm 审批** | ✅ 通道两侧都有证据：假 WS+HTTP 上 `$events` → `approval/request` → `$events/result` 逐字断言；真内核上 `$events` 首帧 `ready` 带 `clientId`；`approval: ask` 的 patch 真启动过、无激活警告。**没有**在 `confirm` 档下真发一条会触发提权的模型请求（要配额） |
-| **交互会话层**（Rust Remote：`arc-deck-dsh::remote`） | ✅ **已实测**：web 内核启停、换票、mux、会话操作（live 不耗配额）；真实一轮流式 → 权威全文替换（quota）。见 [REMOTE_0.2.1](docs/REMOTE_0.2.1.md) |
+| **交互会话层**（Rust Remote：`saiku-dsh::remote`） | ✅ **已实测**：web 内核启停、换票、mux、会话操作（live 不耗配额）；真实一轮流式 → 权威全文替换（quota）。见 [REMOTE_0.2.1](docs/REMOTE_0.2.1.md) |
 | **GUI 后端接口** `saiku serve --stdio` | ✅ **已实测**（握手 / 坏行不断开 / 未知命令被容忍 / EOF 收内核放锁）；共享 socket 模式**未实现**。见 [GUI_PLUGGABLE](docs/GUI_PLUGGABLE.md) |
 | `uwp/` 编译与打包 | ✅ 从零 Rebuild 无错误无警告，产出 MSIX（0.1.13.0） |
 | `uwp/` 启动运行 | ✅ **已实测**（签名 → 覆盖安装 → 启动，无 crash.log） |
@@ -881,20 +881,20 @@ SDK 里 152 处引用、0 处定义。
 | `uwp/` 多选批量操作 | ✅ **已实测**（`CanSelectMultiple=True`；选中两行后批量置顶，两行都升到顶部且带图钉；多选时「重命名」正确置灰） |
 | `uwp/` 外观 | ⚠️ 只做到圆角归零。图标字形与控件模板形状改不动，见 U3 |
 | 无障碍 | `kanesumi/` ❌ 没有（自绘路线最大缺口）· `uwp/` ✅ 平台提供，图标按钮已补 `AutomationProperties.Name` |
-| `arc-deck-dsh`（协议客户端） | ✅ **已实测**：找到内核 → 起 `dsh --profile sdk` → 握手 → `session/prompt` → 流式事件 → 投影出助手正文（`dsh-cli`，见下） |
-| `arc-deck-dsh` 接进界面 | ❌ **未做**：协议层仍没有被任一界面引用。P1 的结构性障碍已由伴随进程绕开（见下一行），但「界面接真实数据」是另一件事 |
+| `saiku-dsh`（协议客户端） | ✅ **已实测**：找到内核 → 起 `dsh --profile sdk` → 握手 → `session/prompt` → 流式事件 → 投影出助手正文（`dsh-cli`，见下） |
+| `saiku-dsh` 接进界面 | ❌ **未做**：协议层仍没有被任一界面引用。P1 的结构性障碍已由伴随进程绕开（见下一行），但「界面接真实数据」是另一件事 |
 | `uwp/` **完整信任伴随进程 + AppService 通道** | ✅ **已实测**（0.1.18）：设置页「拉起并检查」→ `FullTrustProcessLauncher` → 伴随进程 `OpenAsync Success` → `ping` 报告 `packaged:true`、`env` 读到包外 `%APPDATA%`、`probe` 真起 `dsh --version`（exit 0）；关掉 UWP 后伴随进程收到「服务关闭」并退出。设计与坑见 [HOST_VALIDATION §七](docs/HOST_VALIDATION_2026-10-15.md) 与 [uwp/README](uwp/README.md) |
-| `arc-deck-dsh` 会话重载（读回已存会话） | ✅ **已实测**：真实日志全部通过重放不变式（**现有 71 份里有 1 份失败** —— 那份日志确实坏了，两份独立读数都指向它，见 P14）；`dsh-cli --verify-reload` **同一条会话**实时 vs 重放逐块一致（参 P7/P9） |
-| `arc-deck-dsh` 会话列表（列磁盘上的会话） | ✅ **已实测**：`--list` 列出会话并标出属于当前工作区的那些。只读会话头、**不解压全文**；**这条路**上拿不到标题（真标题要重载才知道，见 `DshSessionReader.Enumerate` 的注释）—— 内核那条路能拿到，见下面一行 |
-| `arc-deck-dsh` 工具卡 / 思考块 | ✅ 已实现（工具卡带标题与结果、思考块默认折叠）。界面侧未接，所以「折叠」这个交互本身**没实测** |
-| `arc-deck-dsh` **harness web / Remote 层**（会话列表、打开、翻页、对账） | ✅ **已实测**：**73 个会话里 71 个逐块对账一致、0 不一致**（`--harness-check-all`，往回翻 132 页）；`--harness-verify` 单条会话「两条路一致」。路上修掉三处：`follow` 打开挂死（P11）、WS 分块撕开汉字（P12）、子 agent 地址读错位置（P13） |
-| `arc-deck-dsh` harness **会话列表带真标题** | ✅ **已实测**：标题就在 `projections.values.title`（`--harness-list-raw` 打出原文确认）。**扫磁盘那条路仍然拿不到标题** —— 两条路不要混 |
-| `arc-deck-dsh` harness **发消息**（`--harness-prompt-live`） | ✅ **已实测**：真发一条 → `accepted=true` → live 事件 10 种 → 收到 `turn/end` → 这一轮新增 2 条消息、无失败块。**第一次跑就抓出两个 bug**（实时帧没拆包装、`stopWhen` 缺失，见 P16） |
-| `arc-deck-dsh` harness **模型失败的出口**（P3） | ✅ **已实测**（对照实验）：故意把模型填成 provider 名字 → 失败以 `finish.reason.failure` 的原文出现在 `assistant/chunk:finish` 块里，检查抓住了它。**这条断言有牙齿**，不是论证 |
-| `arc-deck-dsh` harness **当轮作用域的断言** | ⚠️ 踩过一次假阳性：断言扫了整个视图，把上一轮**故意造的**失败也算了进来，于是修复后仍报「模型失败」。已改成只看发消息后新增的那一段（参 P16 第三条） |
-| `arc-deck-dsh` harness **往回翻页**（`session/page`） | ✅ **已实测**：`loadAllHistory` 翻到底再按时间顺序折叠；73 个会话全部「历史取全=True」，最多的一个 17 页（参 P13） |
-| `arc-deck-dsh` harness **mux 分流**（一条连接两条流） | ✅ **已实测**（`--harness-mux-check`：两条流并发等，各自快照的 `header.id` 与请求逐字相同）。修前所有流共用一个队列 |
-| `arc-deck-dsh` harness **子 agent 会话** | ✅ **已实测**：44 个子 agent 用**父地址**形状打开并对账通过。`mode` 从 `projections.values.subagent` 读（位置曾经读错，见 P13） |
+| `saiku-dsh` 会话重载（读回已存会话） | ✅ **已实测**：真实日志全部通过重放不变式（**现有 71 份里有 1 份失败** —— 那份日志确实坏了，两份独立读数都指向它，见 P14）；`dsh-cli --verify-reload` **同一条会话**实时 vs 重放逐块一致（参 P7/P9） |
+| `saiku-dsh` 会话列表（列磁盘上的会话） | ✅ **已实测**：`--list` 列出会话并标出属于当前工作区的那些。只读会话头、**不解压全文**；**这条路**上拿不到标题（真标题要重载才知道，见 `DshSessionReader.Enumerate` 的注释）—— 内核那条路能拿到，见下面一行 |
+| `saiku-dsh` 工具卡 / 思考块 | ✅ 已实现（工具卡带标题与结果、思考块默认折叠）。界面侧未接，所以「折叠」这个交互本身**没实测** |
+| `saiku-dsh` **harness web / Remote 层**（会话列表、打开、翻页、对账） | ✅ **已实测**：**73 个会话里 71 个逐块对账一致、0 不一致**（`--harness-check-all`，往回翻 132 页）；`--harness-verify` 单条会话「两条路一致」。路上修掉三处：`follow` 打开挂死（P11）、WS 分块撕开汉字（P12）、子 agent 地址读错位置（P13） |
+| `saiku-dsh` harness **会话列表带真标题** | ✅ **已实测**：标题就在 `projections.values.title`（`--harness-list-raw` 打出原文确认）。**扫磁盘那条路仍然拿不到标题** —— 两条路不要混 |
+| `saiku-dsh` harness **发消息**（`--harness-prompt-live`） | ✅ **已实测**：真发一条 → `accepted=true` → live 事件 10 种 → 收到 `turn/end` → 这一轮新增 2 条消息、无失败块。**第一次跑就抓出两个 bug**（实时帧没拆包装、`stopWhen` 缺失，见 P16） |
+| `saiku-dsh` harness **模型失败的出口**（P3） | ✅ **已实测**（对照实验）：故意把模型填成 provider 名字 → 失败以 `finish.reason.failure` 的原文出现在 `assistant/chunk:finish` 块里，检查抓住了它。**这条断言有牙齿**，不是论证 |
+| `saiku-dsh` harness **当轮作用域的断言** | ⚠️ 踩过一次假阳性：断言扫了整个视图，把上一轮**故意造的**失败也算了进来，于是修复后仍报「模型失败」。已改成只看发消息后新增的那一段（参 P16 第三条） |
+| `saiku-dsh` harness **往回翻页**（`session/page`） | ✅ **已实测**：`loadAllHistory` 翻到底再按时间顺序折叠；73 个会话全部「历史取全=True」，最多的一个 17 页（参 P13） |
+| `saiku-dsh` harness **mux 分流**（一条连接两条流） | ✅ **已实测**（`--harness-mux-check`：两条流并发等，各自快照的 `header.id` 与请求逐字相同）。修前所有流共用一个队列 |
+| `saiku-dsh` harness **子 agent 会话** | ✅ **已实测**：44 个子 agent 用**父地址**形状打开并对账通过。`mode` 从 `projections.values.subagent` 读（位置曾经读错，见 P13） |
 | `uwp/` 数据 | ⚠️ 全部是示例数据（`Models/Store.cs`、`Store.Tools`），未接协议；协议层已能供数据但**尚未接线** |
 
 ### 还没实测的部分
@@ -913,7 +913,7 @@ SDK 里 152 处引用、0 处定义。
 
 ```bash
 # headless 日常用法（PRODUCT_PLAN §6.0）。首次：装运行时、写配置、存密钥。
-cargo build -p arc-deck-cli --release && cp target/release/saiku.exe ~/.cargo/bin/
+cargo build -p saiku-cli --release && cp target/release/saiku.exe ~/.cargo/bin/
 saiku runtime install            # 钉住的 DSH 装进 %LOCALAPPDATA%\saiku\runtime\
 saiku config init                # %APPDATA%\saiku\saiku.json；Ether 用 examples/ether/saiku.json
 saiku auth set opencode-go       # 密钥从 stdin 读
@@ -926,25 +926,25 @@ saiku report <id>
 # `cargo test` 走 debug，真实场景走 release，两者不会互相更新。（2026-10-14 为此白跑两轮。）
 
 # Saiku Deck 产品 crate（core / dsh / cli）—— TUI 与 headless 的那一半
-# `--features arc-deck-cli/test-runtime` 是必需的：假 SDK 对端与隐藏子命令
+# `--features saiku-cli/test-runtime` 是必需的：假 SDK 对端与隐藏子命令
 # 都在那个 feature 后面，发布构建里不存在它们。
-cargo test -p arc-deck-core -p arc-deck-dsh -p arc-deck-cli \
-    --features arc-deck-cli/test-runtime --offline
+cargo test -p saiku-core -p saiku-dsh -p saiku-cli \
+    --features saiku-cli/test-runtime --offline
 
 # 端到端离线验收（不发任何模型请求）。重复跑要先清状态目录，否则第二次
 # 以 TASK_ALREADY_SEEN 退出 64 —— 见 docs/PRODUCT_PLAN.md §10.2。
-cargo run -p arc-deck-cli --bin saiku --features test-runtime -- worker run \
+cargo run -p saiku-cli --bin saiku --features test-runtime -- worker run \
     --config tests/fixtures/worker-offline.json \
     --task tests/fixtures/worker-task.json --format jsonl --result result.json
 
 # 早期自绘 GUI 骨架（kanesumi 那一支，已暂停新增功能）
 cargo test
-cargo run --bin arc-deck-demo
+cargo run --bin saiku-demo
 cargo run -p layout-bench --release
 ```
 
 ```powershell
-# 协议层（arc-deck-dsh）—— 与界面无关，不需要窗口
+# 协议层（saiku-dsh）—— 与界面无关，不需要窗口
 # 必须用这个包装脚本：它会在构建失败时炸，而不是拿旧 dll 继续跑（参 U16）
 powershell -File uwp\tools\sdk\run-cli.ps1 --list                      # 列磁盘上的会话
 powershell -File uwp\tools\sdk\run-cli.ps1 --load <会话 id>             # 重载一个已存会话
@@ -967,10 +967,10 @@ powershell -File uwp\tools\sdk\run-cli.ps1 --harness-prompt-live "x" --harness-t
     --harness-model deepseek-official/deepseek-official    # 对照实验：故意用错的模型，看 finish 失败块
 
 # 重放不变式：对全部真实日志跑一遍（这是最接近回归测试的东西）
-dotnet run --project arc-deck-dsh\tools\log-probe -- --check-all "$env:APPDATA\dsh-desktop\harness\sessions"
+dotnet run --project saiku-dsh\tools\log-probe -- --check-all "$env:APPDATA\dsh-desktop\harness\sessions"
 # 对照实验：展开打包行 + 按最朴素的方式消费增量，看断言会不会响。
 # **注意：在当前的日志上它观察不到差异**（参 P9），`log-probe` 会自己把这件事报出来。
-dotnet run --project arc-deck-dsh\tools\log-probe -- <日志路径> --check --no-replay
+dotnet run --project saiku-dsh\tools\log-probe -- <日志路径> --check --no-replay
 ```
 
 > 上面写的是 `powershell`（5.1）而不是 `pwsh`：这台机器上**没有装 PowerShell 7**，
@@ -979,12 +979,12 @@ dotnet run --project arc-deck-dsh\tools\log-probe -- <日志路径> --check --no
 ```powershell
 # UWP 版本（必须 MSBuild + Release）
 $msbuild = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
-& $msbuild uwp\src\ArcDeck.csproj /t:Restore /p:Configuration=Release /p:Platform=x64
-& $msbuild uwp\src\ArcDeck.csproj /p:Configuration=Release /p:Platform=x64
+& $msbuild uwp\src\Saiku.csproj /t:Restore /p:Configuration=Release /p:Platform=x64
+& $msbuild uwp\src\Saiku.csproj /p:Configuration=Release /p:Platform=x64
 
 # 不跑程序时，唯一可用的检查是从零重建 —— 它会重新编译 XAML，
 # 增量构建可能漏掉 XAML 层面的错误。
-& $msbuild uwp\src\ArcDeck.csproj /t:Rebuild /p:Configuration=Release /p:Platform=x64
+& $msbuild uwp\src\Saiku.csproj /t:Rebuild /p:Configuration=Release /p:Platform=x64
 
 # 部署：建证书 → 信任 → 签名 → 验证，一条命令给明确结论
 dotnet run --project uwp\tools\deploy-check
@@ -1007,7 +1007,7 @@ $ps5 = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
 & $ps5 -File uwp\tools\shot\Uia.ps1 -Invoke "会话" -Out shot.png
 
 # TUI 真终端探针（隐藏控制台 + 写按键 + 读屏幕；-Submit 会花一次小配额）
-& $ps5 -File crates\arc-deck-tui\tools\console-probe.ps1 -Exe D:\arcdeck\target-main\release\saiku.exe
+& $ps5 -File crates\saiku-tui\tools\console-probe.ps1 -Exe D:\saiku\target-main\release\saiku.exe
 ```
 
 **别用肉眼判断界面改没改。** `uwp/tools/shot/` 下的脚本是为了把这类判断做成

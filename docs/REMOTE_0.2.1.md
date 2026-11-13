@@ -1,15 +1,15 @@
 # DSH 0.2.1-alpha.2 Remote 层：协议核对与 Rust 实现
 
 日期：2026-10-20。对象：钉住的 `@deepseek-ai/dsh@0.2.1-alpha.2`（`REFS/deepseek-harness` 提交 `d7432673`）。
-实现：`crates/arc-deck-dsh/src/remote/`。C# 那一版（`arc-deck-dsh/src/ArcDeck.Dsh/Harness/`）对 0.1.6 成立，**这里没有一条结论是从它抄来的** —— 形状相同的地方都在 0.2.1 源码里重新找到了出处。
+实现：`crates/saiku-dsh/src/remote/`。C# 那一版（`saiku-dsh/src/Saiku.Dsh/Harness/`）对 0.1.6 成立，**这里没有一条结论是从它抄来的** —— 形状相同的地方都在 0.2.1 源码里重新找到了出处。
 
 ## 一、证据层次
 
 | 层 | 证明什么 | 怎么跑 |
 |---|---|---|
-| 离线单测（`remote::*`） | 我们自己的编解码、分发、折叠代码 | `cargo test -p arc-deck-dsh --offline` |
-| live（不耗配额） | 我们对 0.2.1 的**理解**：启动、换票、一元调用、mux、会话操作 | `cargo test -p arc-deck-dsh --offline --lib -- --ignored remote_live_` |
-| quota（耗一次极小配额） | 真实一轮：流式 → 权威全文 → turn/end；**夹具 `tests/fixtures/remote/one-turn.jsonl` 来自这里** | `cargo test -p arc-deck-dsh --offline --lib -- --ignored remote_quota_` |
+| 离线单测（`remote::*`） | 我们自己的编解码、分发、折叠代码 | `cargo test -p saiku-dsh --offline` |
+| live（不耗配额） | 我们对 0.2.1 的**理解**：启动、换票、一元调用、mux、会话操作 | `cargo test -p saiku-dsh --offline --lib -- --ignored remote_live_` |
+| quota（耗一次极小配额） | 真实一轮：流式 → 权威全文 → turn/end；**夹具 `tests/fixtures/remote/one-turn.jsonl` 来自这里** | `cargo test -p saiku-dsh --offline --lib -- --ignored remote_quota_` |
 
 离线夹具取自真实抓帧，不是按源码手写的形状（P9：论证不等于证据）。
 

@@ -11,8 +11,8 @@
 ```bash
 gh release download v1.0.0 --repo ProjectArcturius/saiku --pattern '*source.tar.gz' --pattern '*aur.tar.gz' --pattern 'SHA256SUMS-source.txt'
 sha256sum -c SHA256SUMS-source.txt
-tar xf arc-deck-1.0.0-source.tar.gz
-tar xf arc-deck-1.0.0-aur.tar.gz
+tar xf saiku-1.0.0-source.tar.gz
+tar xf saiku-1.0.0-aur.tar.gz
 ```
 
 草稿资产需有仓库访问权限的 `gh` 下载；正式发布后 recipe 的公开下载 URL 才可用。
@@ -21,12 +21,12 @@ tar xf arc-deck-1.0.0-aur.tar.gz
 
 ```bash
 sudo pacman -S --needed base-devel rust nodejs npm git
-cp arc-deck-1.0.0-source.tar.gz arc-deck-aur/
-cd arc-deck-aur
+cp saiku-1.0.0-source.tar.gz saiku-aur/
+cd saiku-aur
 makepkg --verifysource
 makepkg -s
 makepkg --printsrcinfo > .SRCINFO
-sudo pacman -U ./arc-deck-1.0.0-1-*.pkg.tar.zst
+sudo pacman -U ./saiku-1.0.0-1-*.pkg.tar.zst
 saiku --version
 ```
 
@@ -40,14 +40,14 @@ recipe 带源码 SHA256，不使用 SKIP。`check()` 跑完整四 crate 离线�
 真实模型调用会耗配额，执行前按用户授权控制范围；零配额的真内核取消测试可运行：
 
 ```bash
-cd ../arc-deck-1.0.0
+cd ../saiku-1.0.0
 saiku runtime install
-cargo test --locked -p arc-deck-dsh --features test-runtime remote_live_cancel_tool_then_immediately_prompt -- --ignored --nocapture
+cargo test --locked -p saiku-dsh --features test-runtime remote_live_cancel_tool_then_immediately_prompt -- --ignored --nocapture
 ```
 
 上传 release 的 Arch 二进制包前，记录 `uname -m`、glibc 与 rustc 版本及测试结果。
 AUR 上架是单独一步：确认命名空闲后，把生成的 PKGBUILD 与 `.SRCINFO` 放入 AUR 的
-`arc-deck` 仓库，按用户授权提交推送；**本轮没有向 AUR 服务器发布**。
+`saiku` 仓库，按用户授权提交推送；**本轮没有向 AUR 服务器发布**。
 
 ## Debian deb：在 Debian 容器内构建
 
@@ -56,12 +56,12 @@ Arch 的 glibc 可能比 Debian 新；**不能把 Arch 编出的 ELF 直接封�
 产物目标 Debian 12+ / Ubuntu 24.04+，系统仍须单独配置 Node.js >=24 的来源。
 
 ```bash
-cd arc-deck-1.0.0
+cd saiku-1.0.0
 mkdir -p target/dist
 docker build -f packaging/debian/Dockerfile -t saiku-deb:1.0.0 .
 docker run --rm -v "$PWD/target/dist:/out" saiku-deb:1.0.0
-dpkg-deb --info target/dist/arc-deck_1.0.0-1_amd64.deb
-dpkg-deb --contents target/dist/arc-deck_1.0.0-1_amd64.deb
+dpkg-deb --info target/dist/saiku_1.0.0-1_amd64.deb
+dpkg-deb --contents target/dist/saiku_1.0.0-1_amd64.deb
 ```
 
 Dockerfile 中跑四 crate 测试，打包脚本用 `dpkg-shlibdeps` 从真实 ELF 推导依赖。
@@ -74,8 +74,8 @@ Dockerfile 中跑四 crate 测试，打包脚本用 `dpkg-shlibdeps` 从真实 E
 实际构建和检查通过后才上传。文件名按实际架构取，不使用无匹配时的原样 glob。
 
 ```bash
-sha256sum arc-deck-1.0.0-1-x86_64.pkg.tar.zst arc-deck_1.0.0-1_amd64.deb > SHA256SUMS-linux.txt
-gh release upload v1.0.0 arc-deck-1.0.0-1-x86_64.pkg.tar.zst arc-deck_1.0.0-1_amd64.deb SHA256SUMS-linux.txt --repo ProjectArcturius/saiku
+sha256sum saiku-1.0.0-1-x86_64.pkg.tar.zst saiku_1.0.0-1_amd64.deb > SHA256SUMS-linux.txt
+gh release upload v1.0.0 saiku-1.0.0-1-x86_64.pkg.tar.zst saiku_1.0.0-1_amd64.deb SHA256SUMS-linux.txt --repo ProjectArcturius/saiku
 gh release view v1.0.0 --repo ProjectArcturius/saiku
 ```
 

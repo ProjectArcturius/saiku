@@ -7,7 +7,7 @@ using Windows.ApplicationModel.AppService;
 using Windows.Foundation.Collections;
 using Windows.Storage;
 
-namespace ArcDeck.Services
+namespace Saiku.Services
 {
     /// <summary>伴随进程的一次应答。`Data` 是它给的 JSON 原文，界面自己决定怎么显示。</summary>
     public sealed class HostReply
@@ -32,7 +32,7 @@ namespace ArcDeck.Services
     /// </summary>
     public static class HostBridge
     {
-        const string ServiceName = "arcdeck.host";
+        const string ServiceName = "saiku.host";
 
         static AppServiceConnection _connection;
         static int _sequence;

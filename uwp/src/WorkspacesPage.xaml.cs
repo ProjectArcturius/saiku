@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using Windows.UI.Xaml.Controls;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>工作区页：把会话按工作区归类。</summary>
     public sealed partial class WorkspacesPage : Page

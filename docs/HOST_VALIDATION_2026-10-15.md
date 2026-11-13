@@ -17,7 +17,7 @@ PRODUCT_PLAN §8 把这件事列为 GUI 的前置验证：**先证明完整信�
 | Windows SDK | 10.0.22621.0、10.0.26100.0 |
 | MSBuild | VS 2022 BuildTools 17.14（**必须用它，不能用 `dotnet build`**，见 三·4） |
 | WinUI 2 框架包 | `Microsoft.UI.Xaml.2.8` x64 `8.2511.26001.0` 已安装（UWP 版带进来的） |
-| 探针工程 | 验证时在 `D:\arcdeck\spike-host`（**仓库外**，验证后已删除）；本文给出复现所需的全部非默认设置 |
+| 探针工程 | 验证时在 `D:\saiku\spike-host`（**仓库外**，验证后已删除）；本文给出复现所需的全部非默认设置 |
 
 ## 二、结论表
 
@@ -153,9 +153,9 @@ Window / MainWindowHandle
 
 ```
 UWP 界面（AppContainer，窗格/输入/Markdown 全部保留）
-   │  AppService `arcdeck.host`（UWP 是 provider —— 服务必须由包自己声明）
+   │  AppService `saiku.host`（UWP 是 provider —— 服务必须由包自己声明）
    ▼
-ArcDeck.Host.exe（包内完整信任进程：起 dsh、读 %APPDATA%、以后的本地服务都在这半边）
+Saiku.Host.exe（包内完整信任进程：起 dsh、读 %APPDATA%、以后的本地服务都在这半边）
 ```
 
 方向容易写反：**完整信任进程不能当 AppService 的 provider**。所以 UWP 是 provider，
@@ -169,14 +169,14 @@ ArcDeck.Host.exe（包内完整信任进程：起 dsh、读 %APPDATA%、以后�
 ```
 已连接
 ping → {"version":"0.1.0","pid":23180,"packaged":true,
-        "packageFamilyName":"ProjectArcturius.ArcDeck_yk0f0xf11xns4",
-        "packageFullName":"ProjectArcturius.ArcDeck_0.1.18.0_x64__yk0f0xf11xns4", ...}
+        "packageFamilyName":"ProjectArcturius.Saiku_yk0f0xf11xns4",
+        "packageFullName":"ProjectArcturius.Saiku_0.1.18.0_x64__yk0f0xf11xns4", ...}
 env  → {"appData":"C:\\Users\\mc158\\AppData\\Roaming", ...}
 probe → {"found":true,"command":"dsh --version","exitCode":0,"stdout":"0.1.7-rc.2"}
 ```
 
 `probe` 是**真的起了一个子进程**（`dsh --version`），`env` 是**真的读到了包外的
-`%APPDATA%`** —— P1 里挡死 UWP 的两条限制都由这半边绕开了。进程侧日志（`%TEMP%\arcdeck-host.log`）
+`%APPDATA%`** —— P1 里挡死 UWP 的两条限制都由这半边绕开了。进程侧日志（`%TEMP%\saiku-host.log`）
 与 UWP 侧日志（`LocalState\host.log`）一一对得上。
 
 生命周期也实测过：关掉 UWP 后伴随进程收到 `服务关闭：Completed` 并退出。

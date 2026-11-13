@@ -38,7 +38,7 @@ TUI 的第一段，但不能据此把 M2c/M2d/M3 或完整 M4 标成完成。
 所以：
 
 - 把 Agent 换成 Plan，或在任务里收紧为不许 shell，不足以证明真实 DSH 拒绝 shell。
-- `workspace` / `full` 有 DSH 的 `DSH_PERMISSION_MODE` 映射，但这不等于所有 Arc Deck
+- `workspace` / `full` 有 DSH 的 `DSH_PERMISSION_MODE` 映射，但这不等于所有 Saiku
   路径、提交、推送及委派限制都已生效。
 - `result.policy` 表达计算所得策略，不能单凭这份留档宣称执行隔离已验证。
 - 当前 TUI 不启用 Plan、readonly 或 confirm；这只是对未实现能力的明确告知，
@@ -52,7 +52,7 @@ MCP 与子任务路径，再用执行负例验证。仅隐藏工具、提示词�
 
 - Windows 的监工存活检查仍退回心跳，不具备 Linux `/proc` 的即时 pid + 启动时刻判死。
   当前 Windows 环境已经能构建，后续可以实现并在这里验证；本轮未改这一块。
-- supervisor 仍在 CLI 内；计划中的 `arc-deck-run` 尚未拆。M4a 通过同一个二进制的
+- supervisor 仍在 CLI 内；计划中的 `saiku-run` 尚未拆。M4a 通过同一个二进制的
   headless 子命令复用它，没有复制 worker、健康算法或执行循环。Remote 接入时仍需要
   正式的运行/会话服务边界。
 - 无验收项时 `completed` 只表示内核正常终止，不能等同工程行为通过验收。
@@ -62,14 +62,14 @@ MCP 与子任务路径，再用执行负例验证。仅隐藏工具、提示词�
 
 ## 4. 本轮落地的 M4a
 
-入口：`arcdeck` 无参数打开 `arc-deck-tui`。非交互 stdin/stdout 返回 64，并提示使用
+入口：`saiku` 无参数打开 `saiku-tui`。非交互 stdin/stdout 返回 64，并提示使用
 headless。现有子命令仍走原路径。
 
 | 功能 | 当前行为 |
 |---|---|
-| Home | Arc Deck 品牌、居中输入区（最多 75 列）、当前目录；可直接输入 |
+| Home | Saiku 品牌、居中输入区（最多 75 列）、当前目录；可直接输入 |
 | 请求 | 每次提交创建独立 ID / DSH runtime；不自动拼历史来模拟多轮会话 |
-| 正文 | 显示最终权威全文；把 Arc Deck 的事实与模型陈述分开；支持标题和 fenced code 的基本样式 |
+| 正文 | 显示最终权威全文；把 Saiku 的事实与模型陈述分开；支持标题和 fenced code 的基本样式 |
 | 进度 | 读取同一份 status / events；健康由现有 status 算法按当前时间计算 |
 | 工具 | 以 call_id 配对摘要/结果，支持折叠；失败摘要不因折叠消失 |
 | 历史 | 当前工作区最近 200 条记录，可搜索和重开查看；`/sessions` 是运行历史入口，尚非 Remote 会话列表 |
@@ -81,8 +81,8 @@ headless。现有子命令仍走原路径。
 | 取消 / 退出 | Esc 请求取消；退出有界等待本次 TUI 所发起的 worker 收尾，不取消其他历史任务 |
 | 偏好 | 仅深浅色及信息栏开关持久化到数据目录的 tui-preferences.json，不改用户启动配置 |
 
-`crates/arc-deck-cli/src/tui.rs` 是控制面桥接，renderer 不依赖 DSH、解释 DSH 私有事件
-或自建 provider loop。桥接把原文写入 `arcdeck run --prompt -` 的 stdin；不经过 shell，
+`crates/saiku-cli/src/tui.rs` 是控制面桥接，renderer 不依赖 DSH、解释 DSH 私有事件
+或自建 provider loop。桥接把原文写入 `saiku run --prompt -` 的 stdin；不经过 shell，
 因此文件名、命令替换字符和超过 Windows 命令行长度的粘贴都能作为指令原文保留。
 `--prompt` 是新增公开入口；不提供它时既有任务书/位置参数规则保持原样。
 
@@ -125,15 +125,15 @@ Remote 多轮会话 / 历史恢复 / 实时 token / 思考块；模型目录、p
 
 ```powershell
 # 正常发布构建，无假 SDK 对端
-cargo build --release -p arc-deck-cli --offline
-.\target\release\arcdeck.exe
+cargo build --release -p saiku-cli --offline
+.\target\release\saiku.exe
 
 # 完整离线回归：Windows 本轮 204 项（Unix 另有平台专属测试）
-cargo test -p arc-deck-core -p arc-deck-dsh -p arc-deck-cli -p arc-deck-tui `
-    --features arc-deck-cli/test-runtime --offline
+cargo test -p saiku-core -p saiku-dsh -p saiku-cli -p saiku-tui `
+    --features saiku-cli/test-runtime --offline
 
 # 新 TUI 单独做严格 lint；其余既有 crate 仍有历史 lint 警告
-cargo clippy -p arc-deck-tui --all-targets --offline --no-deps -- -D warnings
+cargo clippy -p saiku-tui --all-targets --offline --no-deps -- -D warnings
 ```
 
 本轮 Windows 伪终端（ConPTY）实际操作：
@@ -164,4 +164,4 @@ Ether 验收和 M2d 仍在队列，不因开始 TUI 而被勾成完成。
 
 依赖搭配核对自 [Ratatui 官方安装说明](https://ratatui.rs/installation/) 与
 [Crossterm event 文档](https://docs.rs/crossterm/0.29.0/crossterm/event/index.html)。
-OpenCode 的布局/调色参考保留 MIT notice 于 `crates/arc-deck-tui/LICENSE-OpenCode`。
+OpenCode 的布局/调色参考保留 MIT notice 于 `crates/saiku-tui/LICENSE-OpenCode`。

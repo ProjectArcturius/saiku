@@ -7,7 +7,7 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>
     /// 应用入口。

@@ -24,65 +24,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arc-deck-cli"
-version = "1.0.0"
-dependencies = [
- "arc-deck-core",
- "arc-deck-dsh",
- "arc-deck-tui",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "arc-deck-core"
-version = "1.0.0"
-dependencies = [
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "arc-deck-dsh"
-version = "1.0.0"
-dependencies = [
- "arc-deck-core",
- "reqwest",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-tungstenite",
-]
-
-[[package]]
-name = "arc-deck-shell"
-version = "1.0.0"
-dependencies = [
- "windows-sys",
-]
-
-[[package]]
-name = "arc-deck-tui"
-version = "1.0.0"
-dependencies = [
- "arc-deck-core",
- "crossterm",
- "pulldown-cmark",
- "ratatui",
- "serde",
- "serde_json",
- "tempfile",
- "unicode-segmentation",
- "unicode-width",
-]
-
-[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1217,6 +1158,65 @@ name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+
+[[package]]
+name = "saiku-cli"
+version = "1.0.0"
+dependencies = [
+ "saiku-core",
+ "saiku-dsh",
+ "saiku-tui",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "saiku-core"
+version = "1.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "saiku-dsh"
+version = "1.0.0"
+dependencies = [
+ "reqwest",
+ "saiku-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
+name = "saiku-shell"
+version = "1.0.0"
+dependencies = [
+ "windows-sys",
+]
+
+[[package]]
+name = "saiku-tui"
+version = "1.0.0"
+dependencies = [
+ "crossterm",
+ "pulldown-cmark",
+ "ratatui",
+ "saiku-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "unicode-segmentation",
+ "unicode-width",
+]
 
 [[package]]
 name = "scopeguard"

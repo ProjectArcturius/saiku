@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 
-namespace ArcDeck.Host;
+namespace Saiku.Host;
 
 /// <summary>
 /// Every entry point appends here. The process is launched by Windows, has no console, and its
@@ -12,7 +12,7 @@ namespace ArcDeck.Host;
 internal static class HostLog
 {
     public static readonly string Path =
-        System.IO.Path.Combine(System.IO.Path.GetTempPath(), "arcdeck-host.log");
+        System.IO.Path.Combine(System.IO.Path.GetTempPath(), "saiku-host.log");
 
     public static void Write(string line)
     {

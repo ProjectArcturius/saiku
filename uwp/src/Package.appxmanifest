@@ -15,7 +15,7 @@
     必须靠提版本覆盖安装，才能保住应用数据。
   -->
   <Identity
-    Name="ProjectArcturius.ArcDeck"
+    Name="ProjectArcturius.Saiku"
     Publisher="CN=ProjectArcturius"
     Version="0.1.18.0" />
 
@@ -44,7 +44,7 @@
   <Applications>
     <Application Id="App"
       Executable="$targetnametoken$.exe"
-      EntryPoint="ArcDeck.App">
+      EntryPoint="Saiku.App">
       <uap:VisualElements
         DisplayName="Saiku Deck"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -56,17 +56,17 @@
       </uap:VisualElements>
       <!--
         完整信任伴随进程（AGENTS P1）：UWP 自己起不了 dsh、读不到 %APPDATA%，
-        执行与文件访问交给 Host\ArcDeck.Host.exe。
+        执行与文件访问交给 Host\Saiku.Host.exe。
 
         AppService 的 provider 必须是**包自己**，所以这里声明服务；
         伴随进程是 client，它用自己的包身份 OpenAsync 连回来。
       -->
       <Extensions>
         <uap:Extension Category="windows.appService">
-          <uap:AppService Name="arcdeck.host" />
+          <uap:AppService Name="saiku.host" />
         </uap:Extension>
         <desktop:Extension Category="windows.fullTrustProcess"
-                           Executable="Host\ArcDeck.Host.exe" />
+                           Executable="Host\Saiku.Host.exe" />
       </Extensions>
     </Application>
   </Applications>

@@ -1,7 +1,7 @@
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>
     /// 按消息归属分派模板。

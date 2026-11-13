@@ -8,7 +8,7 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Documents;
 using Windows.UI.Xaml.Media;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>
     /// 把模型输出里的 Markdown 渲染成 TextBlock 的 inlines。

@@ -4,7 +4,7 @@
     <TargetFramework>net9.0-windows</TargetFramework>
     <Nullable>disable</Nullable>
     <AssemblyName>deploy-check</AssemblyName>
-    <RootNamespace>ArcDeck.Tools</RootNamespace>
+    <RootNamespace>Saiku.Tools</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.IO.Compression" Version="4.3.0" />

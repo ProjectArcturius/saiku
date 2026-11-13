@@ -1,8 +1,8 @@
 # 任务书 w4-m3-guard：把 Saiku 的授权策略落到 DSH 的执行层（M3 第一段）
 
-派工者：claude。仓库：arc-deck（Rust workspace）。你在独立 git worktree 里工作，别的工人同时在改
-`crates/arc-deck-tui` 与 `crates/arc-deck-dsh/src/remote/`（新模块）。**本任务动 `crates/arc-deck-core`、
-`crates/arc-deck-dsh/src/runtime.rs`、`crates/arc-deck-cli/src/worker.rs` 与 `docs/`**；不要碰 `remote/` 与 TUI。
+派工者：claude。仓库：saiku（Rust workspace）。你在独立 git worktree 里工作，别的工人同时在改
+`crates/saiku-tui` 与 `crates/saiku-dsh/src/remote/`（新模块）。**本任务动 `crates/saiku-core`、
+`crates/saiku-dsh/src/runtime.rs`、`crates/saiku-cli/src/worker.rs` 与 `docs/`**；不要碰 `remote/` 与 TUI。
 
 ## 背景（先读）
 
@@ -12,7 +12,7 @@
 不许 shell，**真实 DSH 照样能写文件、跑 shell**。PRODUCT_PLAN §5.6（授权级别）、§5.3 / §5.4（Agent 与模式）、
 §9（DSH 接法）、第 845 行附近（交集原则）是规格。
 
-DSH 源码（只读，与钉住的运行时同版本）：`C:/Users/mc158/Documents/Projects/arc-deck/REFS/deepseek-harness/`。
+DSH 源码（只读，与钉住的运行时同版本）：`C:/Users/mc158/Documents/Projects/saiku/REFS/deepseek-harness/`。
 已知的关键事实（**你要按源码核实**）：
 - `packages/plan/plan-mode/README.md`：Plan 模式**不限制任何工具**，「use sandbox mode and approval prompts for enforced limits」。
   所以 Saiku 的 Plan 不能只靠开 DSH 的 plan-mode。
@@ -54,9 +54,9 @@ DSH 源码（只读，与钉住的运行时同版本）：`C:/Users/mc158/Docume
 ## 验收（派工者原样复跑）
 
 ```
-cargo test -p arc-deck-core -p arc-deck-dsh --offline
-cargo test -p arc-deck-cli --features test-runtime --offline
-cargo test -p arc-deck-dsh -p arc-deck-cli --features arc-deck-cli/test-runtime --offline -- --ignored m3_live_
+cargo test -p saiku-core -p saiku-dsh --offline
+cargo test -p saiku-cli --features test-runtime --offline
+cargo test -p saiku-dsh -p saiku-cli --features saiku-cli/test-runtime --offline -- --ignored m3_live_
 ```
 
 最终回复写：映射表摘要；哪些限制是真实强制、哪些只是可见性、哪些做不到；每条要求对应的测试；没做 / 拿不准的地方。

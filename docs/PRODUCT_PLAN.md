@@ -6,10 +6,9 @@
 
 ## 0. 2026-10-14 定型结论
 
-**改名（2026-10-21）**：原名 Arc Deck 已被他人使用。产品与二进制改叫 **Saiku**（`saiku`），桌面 GUI 统称
-**Saiku Deck**，仓库改为 `ProjectArcturius/saiku`。用户目录 `arcdeck` → `saiku`（首次运行自动迁移），
-`ARCDECK_*` 环境变量 → `SAIKU_*`。内部 crate 名 `arc-deck-*` 与 C# 的 `ArcDeck.*` 不改；本文中带日期的实测
-记录若出现旧名，指的是改名前的同一个东西。
+**命名（2026-10-21 起）**：产品与二进制叫 **Saiku**（`saiku`），桌面 GUI 统称 **Saiku Deck**，仓库是
+`ProjectArcturius/saiku`。用户目录、环境变量、Rust crate、C# 命名空间与 UWP 包标识统一为
+`saiku` / `SAIKU_*` / `Saiku.*` 一套，不保留任何旧名别名；旧安装的用户目录只在首次运行时迁移一次。
 
 **本轮推进补记（2026-10-14）**：用户要求审查核心/headless 完备性后开始 TUI。审计及 M4a 第一段见
 [CORE_HEADLESS_AUDIT_2026-10-14.md](CORE_HEADLESS_AUDIT_2026-10-14.md)。无参数入口已替换为
@@ -32,7 +31,7 @@ M2c 的 Ether 真派工、M2d 的对照门、M5 与 M6 仍未做。
 | D6 | **桌面版分两块且都冻结**：Windows = C# + WinUI 2，Linux = Rust + Kanesumi。都等后端的本地服务接口（M5）稳定后再接，不并行开发 | 用户 2026-10-14 |
 | D7 | **headless 的控制面是任务状态目录里的文件**（状态、事件、结果、取消），不是常驻服务。ssh 过去 `saiku status` 就能读，Windows 与 Arch 一样 | 本文 §6.5 |
 | D8 | 「非 DS 用 DSH 不劣于 OpenCode」与「完整工具集 vs RL 两工具组合」都**未测**，列为 M2d 对照门；没有数据前不建第二个内核 | DSH_FINDINGS §5 |
-| D9 | **仓库主许可证采用 Apache-2.0**（根 `LICENSE`，第三方归属见 `NOTICE`）。TUI 从 OpenCode（MIT）移植的部分继续保留原 MIT notice（`crates/arc-deck-tui/LICENSE-OpenCode`），不因主许可证改变 | 用户 2026-10-20 |
+| D9 | **仓库主许可证采用 Apache-2.0**（根 `LICENSE`，第三方归属见 `NOTICE`）。TUI 从 OpenCode（MIT）移植的部分继续保留原 MIT notice（`crates/saiku-tui/LICENSE-OpenCode`），不因主许可证改变 | 用户 2026-10-20 |
 
 ## 1. 文档状态与需求基线
 
@@ -140,14 +139,14 @@ WinUI 2（Windows）、Kanesumi（Linux）── 版本化本地 IPC ──▶ s
 
 | 计划位置 | 职责 | 不负责 |
 |---|---|---|
-| `crates/arc-deck-core/` | 产品配置、任务与结果类型、状态文件 schema、Agent 解析、归一化事件/投影、策略要求 | 终端绘制、XAML、进程管理、模型 HTTP 调用 |
-| `crates/arc-deck-dsh/` | 运行时定位/启动/关闭、版本验证、**per-task DSH_HOME 与 profile 生成**、SDK/Remote 协议、能力映射与 DSH 事件转换 | 自建模型循环、另一套文件/命令执行器 |
-| `crates/arc-deck-run/`（M2b 新建） | 监工：任务状态目录、心跳与进度、卡死判定、有界续跑、进程树收尾（Windows Job Object / Unix 进程组）、worktree 准备、结果采集（git 提交与 diff 由此采，不信模型自报） | 参数解析、终端输出格式 |
-| `crates/arc-deck-cli/` | `saiku` 二进制：参数解析与分派（无参数 → TUI，子命令 → headless）、一行状态的格式、退出码 | 单独维护 Agent、投影或监工逻辑 |
-| `crates/arc-deck-tui/`（M4 新建） | OpenCode 风格终端渲染、编辑、命令与交互 | 直接理解 DSH 原始事件与私有字段 |
+| `crates/saiku-core/` | 产品配置、任务与结果类型、状态文件 schema、Agent 解析、归一化事件/投影、策略要求 | 终端绘制、XAML、进程管理、模型 HTTP 调用 |
+| `crates/saiku-dsh/` | 运行时定位/启动/关闭、版本验证、**per-task DSH_HOME 与 profile 生成**、SDK/Remote 协议、能力映射与 DSH 事件转换 | 自建模型循环、另一套文件/命令执行器 |
+| `crates/saiku-run/`（M2b 新建） | 监工：任务状态目录、心跳与进度、卡死判定、有界续跑、进程树收尾（Windows Job Object / Unix 进程组）、worktree 准备、结果采集（git 提交与 diff 由此采，不信模型自报） | 参数解析、终端输出格式 |
+| `crates/saiku-cli/` | `saiku` 二进制：参数解析与分派（无参数 → TUI，子命令 → headless）、一行状态的格式、退出码 | 单独维护 Agent、投影或监工逻辑 |
+| `crates/saiku-tui/`（M4 新建） | OpenCode 风格终端渲染、编辑、命令与交互 | 直接理解 DSH 原始事件与私有字段 |
 
 依赖方向：`core ← dsh ← run ← cli`，`tui` 依赖 `core` 与 `run`（TUI 里发起的任务与 headless 同一套状态）。
-现在 `arc-deck-cli/src/worker.rs`（约 1070 行）里的生命周期逻辑在 M2b 拆进 `arc-deck-run` —— 拆的理由是
+现在 `saiku-cli/src/worker.rs`（约 1070 行）里的生命周期逻辑在 M2b 拆进 `saiku-run` —— 拆的理由是
 TUI 与将来的服务都要复用它，不是行数；M2a 不拆，先让真实 DSH 跑通。
 | `agents/`、`prompts/` | 版本化角色、Build/Plan 行为、Echo 风格和交付规则 | 凭据、用户私有全局配置 |
 | `schemas/`、`tests/fixtures/` | 公开契约与无凭据测试夹具 | 真实用户会话与 API key |
@@ -160,7 +159,7 @@ TUI 与将来的服务都要复用它，不是行数；M2a 不拆，先让真实
 
 - `kanesumi/`：**Linux 桌面版的路线**（D6），当前冻结 —— 不新增功能，保留源码、测试与测量记录；它的设计正典不支配新 TUI 或 WinUI。
 - `uwp/`：**Windows 桌面版的路线**，当前冻结 —— 保留现有页面、平台行为与 UIA/像素验收；当前仍为示例数据，不称作已接入新 core。
-- 根 `arc-deck-dsh/`：保留 C# 旧适配器和探针供行为核对；新 Rust 适配器验收完成后再决定归档方式，不先删旧代码。
+- 根 `saiku-dsh/`：保留 C# 旧适配器和探针供行为核对；新 Rust 适配器验收完成后再决定归档方式，不先删旧代码。
 - Cargo workspace 现有成员先保留；新增 crate 时才改构建结构，不用目录移动制造无关 diff。
 - 历史约束按实现范围保留；例如 Kanesumi 的 Win32 FFI/IME 规则不是新 headless 必须依赖窗口层的理由。
 
@@ -281,7 +280,7 @@ Build/Plan 借鉴的是角色与行为，不将 OpenCode 的 provider、工具�
 
 ### 6.0 命令面（`saiku`）
 
-可执行文件改名为 `saiku`（现为 `arc-deck`，M2a 改；crate 名不动）。参照 OpenCode 的
+可执行文件叫 `saiku`，crate 也统一为 `saiku-*`。参照 OpenCode 的
 `opencode` / `opencode run` 分法：**无参数是交互，有子命令是 headless**。
 
 ```text
@@ -568,7 +567,7 @@ fix-filter  failed   done     验收 filter-regression 退出 101 · commits 2 �
 - 验收失败也必须有码。没有它，一条验收不过的任务在状态面上只有一个 `failed`，
   调度者还得回去读 `result.json` 才知道是哪一条命令、退出码多少。
 - `retryable` 是给调度者的**建议**，不是自动动作：Saiku 不会因为它去重试
-  （§6.5.4 的重试只针对卡死与 DSML 泄漏）。判定表在 `arc-deck-core::failure`。
+  （§6.5.4 的重试只针对卡死与 DSML 泄漏）。判定表在 `saiku-core::failure`。
 - **认不出就保守**：`MODEL_FAILURE` 且 `retryable = false`。分类错成「不可重派」只是多
   看一眼；错成「可重派」会白烧一次配额 —— 两边代价不对称，所以往保守那边倒。
 
@@ -768,7 +767,7 @@ DSH 协议里的 `reasoningEffort` 是上游字段名，映射在适配器里做
 ## 8. 桌面 GUI 需求（冻结，不在当前焦点）
 
 > **2026-10-15 先决验证结果**：[HOST_VALIDATION_2026-10-15.md](HOST_VALIDATION_2026-10-15.md)。
-> **2026-10-20 接线方案**：[GUI_PLUGGABLE.md](GUI_PLUGGABLE.md) —— GUI 不链接后端，只说 `arc_deck_core::service` 这份带版本的消息；
+> **2026-10-20 接线方案**：[GUI_PLUGGABLE.md](GUI_PLUGGABLE.md) —— GUI 不链接后端，只说 `saiku_core::service` 这份带版本的消息；
 > 第一档 `saiku serve --stdio` 已实现并实测，共享 socket（多前端同连）是设计。本节「版本化本地 IPC」即指它。
 >
 > 完整信任宿主与**系统 XAML**（`Windows.UI.Xaml`）island 均实测成立（起子进程、读 `%APPDATA%`、UIA 可见）；
@@ -789,7 +788,7 @@ DSH 协议里的 `reasoningEffort` 是上游字段名，映射在适配器里做
 
 继续 C# + WinUI 2，使用平台控件、主题、键盘/无障碍与既有列表/Markdown/设置经验；不将 OpenCode 终端视觉搬进 WinUI，也不继续推进 Kanesumi 自绘 GUI。
 
-现有 `uwp/src/ArcDeck.csproj` 为 `AppContainerExe`，不能直接承担完整信任的 DSH/Rust 宿主职责。先验证完整信任桌面宿主 + WinUI 2 / XAML Islands：关键控件、主题、中文输入、UIA、资源、打包和启动均须运行检查，不承诺 XAML 原样迁移。
+现有 `uwp/src/Saiku.csproj` 为 `AppContainerExe`，不能直接承担完整信任的 DSH/Rust 宿主职责。先验证完整信任桌面宿主 + WinUI 2 / XAML Islands：关键控件、主题、中文输入、UIA、资源、打包和启动均须运行检查，不承诺 XAML 原样迁移。
 
 通过后，经版本化本地 IPC 消费 Rust core 的任务/会话/工具/结果；页面不直接解释 DSH 私有事件。验收必须包含去掉示例数据后的新建、发送、停止、历史、失败与设置持久化，并与 TUI 的同任务状态一致。
 
@@ -878,11 +877,11 @@ OpenCode Go 走的也是 Anthropic Messages 协议，缓存命中实测有效，
 | M0：需求基线 | 本文、README/AGENTS/旧工作流入口、参考与许可边界 | ✅ 已完成：产品要求/选定方案/未决项分开，旧双 GUI 路线不再支配新开发 |
 | M1：离线 worker 骨架 | core/adapter/CLI 最小 crate；任务/结果/JSONL schema；Echo 定义解析；假 SDK 子进程 | ✅ **已实测**：127 个离线测试通过（成功/失败/受阻/EOF/坏帧/分帧中文/错 ID/结果写失败/超时/取消），全程无模型请求 |
 | **M2a：真实 DSH 单任务**（焦点） | 钉 DSH 版本（Windows 与 Arch 同版）；`runtime.kind = dsh-sdk`；per-task `DSH_HOME` 与 profile 生成（§9.2）；新版本事件投影；Echo + `--preamble` 进 system prompt；usage 采集；二进制改名 `saiku`，无参数给出 TUI 未实现提示 | 一件真实的 Ether 风格任务在 Windows 上经 `deepseek-official` 跑到 `completed`，验收命令的退出码由 Saiku 采集；内核失败（错模型名，参 P3）被识别为 `failed`；`session-log-deepseek` 的实际开关在请求里核对过。**会消耗模型配额，跑前经用户同意** |
-| **M2b：分离运行与探活**（焦点） | 拆出 `arc-deck-run`；状态目录与 `status.json`；`--detach`；`status/wait/report/logs/cancel/ls`；读者侧健康判定；stalled 自救与有界续跑；进程树收尾（Windows Job Object、Unix 进程组） | 离线故障注入全部过：假内核挂住（→ stalled → 续跑）、杀监工（→ dead/unknown）、杀 runtime、取消、pid 复用、状态文件写到一半。阈值判定有时钟可注入的单测；**一行输出的字节数有测试上限**。**2026-10-14 补**：`pid` + `pid_started_at` 已实装（Linux 走 `/proc`，其余平台刻意降级为「不知道」），`kill -9` 监工后 `status` 1 秒内报 `dead` —— 真实运行时实测过 |
+| **M2b：分离运行与探活**（焦点） | 拆出 `saiku-run`；状态目录与 `status.json`；`--detach`；`status/wait/report/logs/cancel/ls`；读者侧健康判定；stalled 自救与有界续跑；进程树收尾（Windows Job Object、Unix 进程组） | 离线故障注入全部过：假内核挂住（→ stalled → 续跑）、杀监工（→ dead/unknown）、杀 runtime、取消、pid 复用、状态文件写到一半。阈值判定有时钟可注入的单测；**一行输出的字节数有测试上限**。**2026-10-14 补**：`pid` + `pid_started_at` 已实装（Linux 走 `/proc`，其余平台刻意降级为「不知道」），`kill -9` 监工后 `status` 1 秒内报 `dead` —— 真实运行时实测过 |
 | **M2c：接进 Ether**（焦点） | Markdown 任务书、`--accept`、`--worktree`、env 模板、`allow_commit`；**Arch 构建与运行**（2026-10-14 修订，原为 Debian）；`examples/ether/` 派工示例 | 一批真实 Ether 任务在 Windows 与 Arch 各派至少一件，调度者**只用 `status` 与 `report`** 完成跟踪与是否细看的判断；与旧 runner 的结果并排对照一次。**Ether 侧脚本改动在 Ether 仓做** |
 | M2d：对照门 | DSH_FINDINGS §5 的 E1–E3 | 有样本量、有数据地回答：官方路由 DSML 是否为 0；`sdk` vs `sdk-minimal` 谁做缺省；非 DS 是否需要第二内核（预期否） |
 | M3：Agent 与权限实装 | Echo/Build/Plan 组合矩阵在执行层生效；工具映射与 schema；Plan 写负例被拒 | §5 的契约有真实内核下的负例；提示词不代替权限 |
-| M4：TUI 主流程 | `arc-deck-tui`：Ratatui 渲染、OpenCode token/布局、输入/action、Remote 与共用投影；`saiku` 无参数进入 | §7 夹具、真实终端与功能验收；历史/stream/取消/失败一致；TUI 里发起的任务与 headless 同一套状态目录。**2026-10-20 状态**：§7.3/§7.4 的组件、键位与命令已接通（工具视图、模式与 confirm 审批、时间线/内容检索、信息栏/故障/复制/性能），离线套件与真终端探针有证据（[M4_PLAN](M4_PLAN.md) 第六轮）；**§7.5 与 OpenCode 的视觉对照未做**（需要人看），所以这一行不标「完成」 |
+| M4：TUI 主流程 | `saiku-tui`：Ratatui 渲染、OpenCode token/布局、输入/action、Remote 与共用投影；`saiku` 无参数进入 | §7 夹具、真实终端与功能验收；历史/stream/取消/失败一致；TUI 里发起的任务与 headless 同一套状态目录。**2026-10-20 状态**：§7.3/§7.4 的组件、键位与命令已接通（工具视图、模式与 confirm 审批、时间线/内容检索、信息栏/故障/复制/性能），离线套件与真终端探针有证据（[M4_PLAN](M4_PLAN.md) 第六轮）；**§7.5 与 OpenCode 的视觉对照未做**（需要人看），所以这一行不标「完成」 |
 | M5：本地服务与稳定 | `saiku serve` 与版本化 IPC；受控并发（单机并发上限由后端守）；macOS；分发与许可 | 平台矩阵实际验收；无孤儿进程/越权/重复写入；不把断点恢复等同 exactly-once |
 | M6：桌面 GUI（冻结中） | Windows：完整信任宿主验证 + IPC 接线；Linux：Kanesumi 接同一 IPC | §8 运行通过且任务状态与 TUI 一致；宿主验证失败则停在决策，不冒充接线完成 |
 
@@ -894,17 +893,17 @@ GUI 的宿主探针不在当前焦点内，不安排。
 
 范围固定为 M1：建立最小 Rust crate 与公开 schema；实现任务解析/默认 Echo/配置拒绝；SDK 行传输与关联；事件投影与结果输出；假 SDK 对端模拟收尾与错误；取消/超时使用本地可控子进程验证。不要同时做完整工具生态、Remote、TUI、GUI、旧日志迁移或重新生成参考仓。
 
-已落地：`crates/arc-deck-core/`、`crates/arc-deck-dsh/`、`crates/arc-deck-cli/`、`agents/`、`prompts/`、`schemas/`、`tests/fixtures/`，以及 Cargo workspace 成员。公开契约的单一事实来源是 Rust 类型；`schemas/*.example.json` 是**示例**，由 `crates/arc-deck-core/tests/schema_contract.rs` 解析并重新序列化来钉住字段名（参 `schemas/README.md`）。
+已落地：`crates/saiku-core/`、`crates/saiku-dsh/`、`crates/saiku-cli/`、`agents/`、`prompts/`、`schemas/`、`tests/fixtures/`，以及 Cargo workspace 成员。公开契约的单一事实来源是 Rust 类型；`schemas/*.example.json` 是**示例**，由 `crates/saiku-core/tests/schema_contract.rs` 解析并重新序列化来钉住字段名（参 `schemas/README.md`）。
 
-验收命令（实测通过；`--features arc-deck-cli/test-runtime` 是必需的，夹具与隐藏子命令都在那个 feature 后面）：
+验收命令（实测通过；`--features saiku-cli/test-runtime` 是必需的，夹具与隐藏子命令都在那个 feature 后面）：
 
 ```powershell
 # 全部离线测试：core 56 + dsh 21 + cli 20 + cli 端到端 23 + 契约 7 = 127 个
-cargo test -p arc-deck-core -p arc-deck-dsh -p arc-deck-cli `
-    --features arc-deck-cli/test-runtime --offline
+cargo test -p saiku-core -p saiku-dsh -p saiku-cli `
+    --features saiku-cli/test-runtime --offline
 
 # 端到端离线验收：退出码 0，结果 status=completed、验收 outcome=passed
-cargo run -p arc-deck-cli --features test-runtime -- worker run `
+cargo run -p saiku-cli --features test-runtime -- worker run `
     --config tests/fixtures/worker-offline.json `
     --task tests/fixtures/worker-task.json `
     --format jsonl --result result.json
@@ -912,7 +911,7 @@ cargo run -p arc-deck-cli --features test-runtime -- worker run `
 
 两条注意，都是实测踩出来的：
 
-- **重复跑要先清状态目录。** 同一 `task_id` 在同一个 `state_root` 下**不会重跑**（第二次以 `TASK_ALREADY_SEEN` 退出 64）。要重跑就换 `task_id`，或删掉 `target/arc-deck-worker-state`。
+- **重复跑要先清状态目录。** 同一 `task_id` 在同一个 `state_root` 下**不会重跑**（第二次以 `TASK_ALREADY_SEEN` 退出 64）。要重跑就换 `task_id`，或删掉 `target/saiku-worker-state`。
 - **相对路径的基准是文件所在目录，不是当前工作目录。** 配置与任务书里的 `../..` 相对各自文件解析；这条路径曾经因为基准没锚成绝对路径而失败过（参 `paths::absolutize` 的注释）。
 
 启动配置固定为 §6.1 的 `fixture-sdk`，并且只在 `test-runtime` feature 下可用；发布构建里出现其他 runtime 类型一律拒绝，不回退真实 DSH。离线负例必须真的触发拒绝/失败；假模型/假协议证明程序行为，不证明 Echo 在真实模型上的风格。
@@ -952,7 +951,7 @@ M1 交付的离线覆盖（每一项都有对应测试）：成功 / 内核失�
 
 已知限制（有意留到后面，不是遗漏）：
 
-- 监工逻辑仍在 `arc-deck-cli/src/worker.rs` 里，`arc-deck-run` crate 没拆（§4.1）。等 TUI 要复用时再拆。
+- 监工逻辑仍在 `saiku-cli/src/worker.rs` 里，`saiku-run` crate 没拆（§4.1）。等 TUI 要复用时再拆。
 - `status` 判「进程已死」只靠心跳过期（45 s），没有比对 pid 与启动时间。
 - 没有 `--accept` 的任务，`completed` 只表示内核正常结束 —— 实测出现过「提交被拒但 completed」，回报的事实栏能看出来（commits 0、未提交 1）。**派 Ether 任务时总是带 `--accept`。**
 - 续跑开的是新 DSH 会话（SDK 没有历史恢复），靠工作区里的成果接着做，不是 exactly-once。

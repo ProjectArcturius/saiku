@@ -6,7 +6,7 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Navigation;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>对话页。</summary>
     public sealed partial class ChatPage : Page

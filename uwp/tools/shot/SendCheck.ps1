@@ -151,7 +151,7 @@ if ($after -gt $before) {
 
 # 正文在 ListItem 的**子树**里。
 #
-# **实测**：ListItem 自身的 Name 是数据对象的类型名（`ArcDeck.ChatMessage`），
+# **实测**：ListItem 自身的 Name 是数据对象的类型名（`Saiku.ChatMessage`），
 # 不是正文 —— 拿它去断言「文本进去了没」会得到假阴性（第一版就是这么错的）。
 $list = $win.FindFirst($TS::Descendants,
   (New-Object System.Windows.Automation.PropertyCondition($AE::AutomationIdProperty, "MessageList")))

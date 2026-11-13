@@ -1,29 +1,29 @@
 # 任务书 w2-remote-transport：Rust 版 DSH Remote 传输层（host / rpc / mux）
 
-派工者：claude。仓库：arc-deck（Rust workspace）。你在独立 git worktree 里工作，别的工人同时在改 `crates/arc-deck-tui`。
-**本任务只动 `crates/arc-deck-dsh`**（新模块）与 `docs/`（一份新文档）。
+派工者：claude。仓库：saiku（Rust workspace）。你在独立 git worktree 里工作，别的工人同时在改 `crates/saiku-tui`。
+**本任务只动 `crates/saiku-dsh`**（新模块）与 `docs/`（一份新文档）。
 
 ## 背景
 
 TUI 要做真正的多轮会话（PRODUCT_PLAN §7.3 Session / 消息），这需要 DSH 的 **Remote 层**：`dsh --profile web` 起一个
 本机 web 内核，HTTP `/api/<ns>/<method>` 做一元调用，WebSocket `/api/remote.mux` 做多路复用的流（follow 会话等）。
-仓里已有一份 **C# 实现**（`arc-deck-dsh/src/ArcDeck.Dsh/Harness/`：`HarnessHost.cs`、`HarnessRpc.cs`、`HarnessMux.cs`、
+仓里已有一份 **C# 实现**（`saiku-dsh/src/Saiku.Dsh/Harness/`：`HarnessHost.cs`、`HarnessRpc.cs`、`HarnessMux.cs`、
 `HarnessSessionClient.cs`），它对 **DSH 0.1.6** 实测过；现在钉住的是 **0.2.1-alpha.2**，协议**必须按新源码重新核对**，
 不能照抄 C# 的结论。`AGENTS.md` 的 **P11–P16** 是 C# 那一版踩过的坑，**先读**，每一条都要在 Rust 版里有对应处理或说明为何不再适用。
 
-DSH 源码（与钉住的运行时同一版本，只读）：`C:/Users/mc158/Documents/Projects/arc-deck/REFS/deepseek-harness/`
+DSH 源码（与钉住的运行时同一版本，只读）：`C:/Users/mc158/Documents/Projects/saiku/REFS/deepseek-harness/`
 - `apps/cli/src/args.ts`、`profile-boot.ts`（`--profile web` 怎么起、`--patch` 怎么叠加）
 - `packages/api/gateway/src/stream-protocol.ts`（mux 帧协议，`REMOTE_STREAM_MUX_PATH`）
 - `packages/client/connection/src/`（`rpc.ts`、`rpc-host.ts`、`rpc-schema.ts`、`client/*.ts`：客户端怎么连、信封形状）
 - web 内核启动时怎么打印带 token 的 URL、怎么换 cookie：自己在 `apps/web`、`packages/` 里找到确切出处。
 
-Rust 侧现有可复用的：`crates/arc-deck-dsh/src/runtime.rs`（`RuntimeLayout::entry`、`render_patch`、`runtime_env`）、
-`process.rs`（`RuntimeProcess`、`no_window`、`kill_tree_by_pid`）、`crates/arc-deck-cli/src/worker.rs` 的 `dsh_runtime_command`
+Rust 侧现有可复用的：`crates/saiku-dsh/src/runtime.rs`（`RuntimeLayout::entry`、`render_patch`、`runtime_env`）、
+`process.rs`（`RuntimeProcess`、`no_window`、`kill_tree_by_pid`）、`crates/saiku-cli/src/worker.rs` 的 `dsh_runtime_command`
 （SDK 模式下怎么拼命令行、环境、密钥 —— web 模式照它的形状来）。依赖 `tokio-tungstenite`、`reqwest`（无 TLS）已加好。
 
 ## 要做的
 
-1. 新模块 `crates/arc-deck-dsh/src/remote/`（`mod.rs` + 按需拆 `host.rs` / `rpc.rs` / `mux.rs`），在 `lib.rs` 里 `pub mod remote;`。
+1. 新模块 `crates/saiku-dsh/src/remote/`（`mod.rs` + 按需拆 `host.rs` / `rpc.rs` / `mux.rs`），在 `lib.rs` 里 `pub mod remote;`。
 2. **host**：用 `node <bin.js> --profile web [--patch <文件>]` 起内核。
    - `DSH_HOME` 由调用方传入（**绝不能默认到 DSH Desktop 的真实 home**，参 P15：follow 会接管会话）；
      遥测关闭等环境照 `runtime_env`。
@@ -50,15 +50,15 @@ Rust 侧现有可复用的：`crates/arc-deck-dsh/src/runtime.rs`（`RuntimeLayo
 ## 约束
 
 - 注释写 why（尤其是「为什么不照 C# 那样做」）；标识符英文，注释可中文。不要重排你没改的代码。
-- 不许再引入新依赖（`--offline`）。`remote/` 模块内 `cargo clippy -p arc-deck-dsh --no-deps` **不新增警告**
+- 不许再引入新依赖（`--offline`）。`remote/` 模块内 `cargo clippy -p saiku-dsh --no-deps` **不新增警告**
   （该 crate 别处有历史警告，不用管，也不要顺手改）。
 - 不要提交（commit）；不要运行联网命令；不要碰 `REFS/`；不要改 DSH Desktop 的 home（`%APPDATA%\dsh-desktop`）。
 
 ## 验收（派工者原样复跑）
 
 ```
-cargo test -p arc-deck-dsh --offline
-cargo test -p arc-deck-dsh --offline -- --ignored remote_live_
+cargo test -p saiku-dsh --offline
+cargo test -p saiku-dsh --offline -- --ignored remote_live_
 ```
 
 最终回复写：做了什么；0.2.1 与 C#/0.1.6 的差异清单；每条 P11–P16 在 Rust 版里怎么处理；没做 / 拿不准的地方。

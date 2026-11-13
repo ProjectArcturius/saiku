@@ -7,7 +7,7 @@
 #     saiku wait <id> --timeout 2h
 #     saiku report <id>
 #
-# 与 dsh-runner.sh 的对应（参 arc-deck docs/PRODUCT_PLAN.md §6.6）：
+# 与 dsh-runner.sh 的对应（参 saiku docs/PRODUCT_PLAN.md §6.6）：
 #   worktree + 分支 dsh/<id>、子模块初始化、CARGO_TARGET_DIR 每任务独占、PREAMBLE 进 system prompt、
 #   卡死看门狗与续跑、后台化（不再需要 nohup）、收尾时的 git log / git status —— 都由 saiku 做。
 #

@@ -5,8 +5,8 @@ profile `sdk`（= `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-sdk-app`）。
 所有 DSH 出处都指 `REFS/deepseek-harness/` 下的源码，路径相对该目录；本机没有跑过的
 结论一律标注「**未实测**」。
 
-**本文件的每一行实测结论都来自 `crates/arc-deck-cli/tests/m3_negative_live.rs` +
-`m3_guard_live.rs`**（用脚本化的假模型端点驱动真实内核）与 `crates/arc-deck-dsh` 的单元矩阵。
+**本文件的每一行实测结论都来自 `crates/saiku-cli/tests/m3_negative_live.rs` +
+`m3_guard_live.rs`**（用脚本化的假模型端点驱动真实内核）与 `crates/saiku-dsh` 的单元矩阵。
 §2 的映射表是「声称强制什么」，§7 是「实测拦住了没有」——两者打架时以 §7 为准。
 
 要解决的问题（`docs/CORE_HEADLESS_AUDIT_2026-10-14.md` §2）：`ExecutionPlan::resolve_with_ceiling`
@@ -39,7 +39,7 @@ profile `sdk`（= `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-sdk-app`）。
 | **可见性** | 只影响模型看得见什么 / 调用被策略检查拦下，**不是**内核边界 |
 | **做不到** | DSH 没有对应的表达；处理方式见 §3 |
 
-### 2.1 授权级别 → DSH 沙箱档（唯一出处：`crates/arc-deck-core/src/authz.rs`）
+### 2.1 授权级别 → DSH 沙箱档（唯一出处：`crates/saiku-core/src/authz.rs`）
 
 | Saiku 级别 | 行 id | 包 | 配置键 | 取值 | 保证范围 |
 |---|---|---|---|---|---|
@@ -237,9 +237,9 @@ PRODUCT_PLAN §5.3 也明确「不得不经适配直接要求 headless 调用其
 
 | 文件 | 做了什么 |
 |---|---|
-| `crates/arc-deck-core/src/authz.rs` | `Permission::from_sandbox` / `stricter`；`ExecutionGuard`；`EffectivePolicy::execution_guard` —— **判定的唯一出处**，表达不了就在这里报 `AUTH_GUARD_UNSUPPORTED` |
-| `crates/arc-deck-dsh/src/runtime.rs` | `PatchInput.guard`；`render_patch` 按映射表生成限制行；`runtime_env` 收 `Permission` |
-| `crates/arc-deck-cli/src/worker.rs` | `dsh_runtime_command` 把 `plan.policy` 投影成 guard、把档名交给环境变量、把留档的缺口带进结果 |
+| `crates/saiku-core/src/authz.rs` | `Permission::from_sandbox` / `stricter`；`ExecutionGuard`；`EffectivePolicy::execution_guard` —— **判定的唯一出处**，表达不了就在这里报 `AUTH_GUARD_UNSUPPORTED` |
+| `crates/saiku-dsh/src/runtime.rs` | `PatchInput.guard`；`render_patch` 按映射表生成限制行；`runtime_env` 收 `Permission` |
+| `crates/saiku-cli/src/worker.rs` | `dsh_runtime_command` 把 `plan.policy` 投影成 guard、把档名交给环境变量、把留档的缺口带进结果 |
 
 生成的 patch 行（每次运行都有）：
 
@@ -256,17 +256,17 @@ PRODUCT_PLAN §5.3 也明确「不得不经适配直接要求 headless 调用其
 
 | 要求 | 测试 |
 |---|---|
-| 每种组合生成的 patch 断言到具体行与取值 | `arc-deck-dsh` 单测 `every_policy_combination_lands_on_concrete_rows`（9 格：Echo/Build/Plan × readonly/workspace/full × shell 开关 × 收窄路径，逐格核对档名、预设名、shell 行、web 行，并核对 `DSH_PERMISSION_MODE` 与 patch 逐字相同） |
+| 每种组合生成的 patch 断言到具体行与取值 | `saiku-dsh` 单测 `every_policy_combination_lands_on_concrete_rows`（9 格：Echo/Build/Plan × readonly/workspace/full × shell 开关 × 收窄路径，逐格核对档名、预设名、shell 行、web 行，并核对 `DSH_PERMISSION_MODE` 与 patch 逐字相同） |
 | Plan / readonly 拒写拒跑 | 同上两条 Plan 格 + `m3_live_plan_mode_patch_is_tightened_to_read_only` |
 | 收窄路径 → 拒绝启动 | `narrowed_write_paths_refuse_to_start`、`narrowed_read_paths_refuse_to_start`、`offline_profile_has_no_dsh_expression` |
 | `network = false` + shell → 拒绝启动 | `network_off_with_shell_open_refuses_to_start` |
 | commit / push 只留档 | `commit_and_push_limits_are_recorded_not_enforced` |
 | 「只能收紧」的负例 | `task_cannot_widen_what_the_startup_level_allows`（提档 / 越界写 / 未授权提交 / Plan 请求写入）、`stricter_only_tightens`、`sandbox_names_round_trip` |
-| live：DSH 接受 patch 且限制在 | `crates/arc-deck-cli/tests/m3_guard_live.rs` 的 5 条 `--dump-config` 用例（临时 `DSH_HOME`，不发 prompt） |
+| live：DSH 接受 patch 且限制在 | `crates/saiku-cli/tests/m3_guard_live.rs` 的 5 条 `--dump-config` 用例（临时 `DSH_HOME`，不发 prompt） |
 | live：组合真的挂得起来 | `m3_live_patch_boots_and_answers_initialize`（真起内核、只走 `initialize`，并断言 stderr 没有 `did not activate`） |
 | live：断言有牙齿 | `m3_live_unknown_row_id_is_reported_on_stderr`（未知 row id → 退出码仍是 0、只有 stderr 警告）、`m3_live_missing_permission_row_breaks_the_permission_plugin`（去掉 `permission` 行 → 插件激活失败） |
-| **live：真实工具调用被拒**（§7 的 1–14） | `crates/arc-deck-cli/tests/m3_negative_live.rs` 的 16 条 `m3_live_*` + 1 条量形状的探针；假端点在 `crates/arc-deck-dsh/src/fake_provider.rs` |
-| **假端点自身**（脚本校验、SSE 形状、请求记录） | `arc-deck-dsh` 的 `fake_provider::tests::*`（3 条单测，含一次真实 HTTP 往返） |
+| **live：真实工具调用被拒**（§7 的 1–14） | `crates/saiku-cli/tests/m3_negative_live.rs` 的 16 条 `m3_live_*` + 1 条量形状的探针；假端点在 `crates/saiku-dsh/src/fake_provider.rs` |
+| **假端点自身**（脚本校验、SSE 形状、请求记录） | `saiku-dsh` 的 `fake_provider::tests::*`（3 条单测，含一次真实 HTTP 往返） |
 
 ## 6 · 验证分级
 
@@ -313,7 +313,7 @@ PRODUCT_PLAN §5.3 也明确「不得不经适配直接要求 headless 调用其
 
 ## 7 · 负例清单与**实测结论**（每条：构造什么工具调用，DSH 实际怎么反应）
 
-前提已经落地：**脚本化的假模型端点**在 `crates/arc-deck-dsh/src/fake_provider.rs`
+前提已经落地：**脚本化的假模型端点**在 `crates/saiku-dsh/src/fake_provider.rs`
 （`test-runtime` feature 后面，发布构建里不存在），它在本机 127.0.0.1 上按脚本回
 `anthropic-messages` 的 SSE，于是「模型说要调什么」变成可编程的输入。
 真实内核、沙箱、工具注册表、审批服务**全是真的** —— 只有「模型说什么」是脚本。
@@ -321,10 +321,10 @@ PRODUCT_PLAN §5.3 也明确「不得不经适配直接要求 headless 调用其
 跑法：
 
 ```
-cargo test -p arc-deck-dsh -p arc-deck-cli --features arc-deck-cli/test-runtime --offline -- --ignored m3_live_
+cargo test -p saiku-dsh -p saiku-cli --features saiku-cli/test-runtime --offline -- --ignored m3_live_
 ```
 
-测试名一律以 `m3_live_` 开头，本体在 `crates/arc-deck-cli/tests/m3_negative_live.rs`。
+测试名一律以 `m3_live_` 开头，本体在 `crates/saiku-cli/tests/m3_negative_live.rs`。
 
 | # | 构造 | 期望（原文，写作时的判断） | **实测** | 测试名 / 证据 |
 |---|---|---|---|---|
@@ -352,7 +352,7 @@ cargo test -p arc-deck-dsh -p arc-deck-cli --features arc-deck-cli/test-runtime 
   「任务书没有声明验收项」。`workspace` / `full` 那几条带验收（模型从不执行 → `blocked` +
   `ACCEPTANCE_UNFINISHED`），顺带把「结果如实」也断言了。
 - **假端点必须在测试进程内跑**。第一版做成了独立二进制（`[[bin]]` + `required-features`），
-  **`cargo test -p arc-deck-cli` 不会重建 `arc-deck-dsh` 的 bin 目标** —— 改完假端点后
+  **`cargo test -p saiku-cli` 不会重建 `saiku-dsh` 的 bin 目标** —— 改完假端点后
   测试跑的仍是旧二进制，症状是「新加的脚本字段不生效」。进程内跑就没这回事。
 - **会话日志的文件名带协议版本**（`session.v4.jsonl.zstd`）。按**后缀** `.jsonl.zstd` 匹配，
   写死 `session.jsonl.zstd` 会在升级 DSH 后以「找不到日志」的形式假失败。

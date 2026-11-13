@@ -2,7 +2,7 @@ using System.Text.Json;
 using Windows.ApplicationModel.AppService;
 using Windows.Foundation.Collections;
 
-namespace ArcDeck.Host;
+namespace Saiku.Host;
 
 /// <summary>
 /// The AppService half. Direction matters and is easy to get backwards:

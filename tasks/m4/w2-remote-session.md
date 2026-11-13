@@ -1,18 +1,18 @@
 # 任务书 w2-remote-session：Remote 会话操作与模型目录（Rust）
 
-派工者：claude（或替班 sol）。仓库：arc-deck。独立 worktree。**只动 `crates/arc-deck-dsh`（`remote/` 下）、
-`crates/arc-deck-core`（如需新增中立数据类型）与 `docs/`。**
+派工者：claude（或替班 sol）。仓库：saiku。独立 worktree。**只动 `crates/saiku-dsh`（`remote/` 下）、
+`crates/saiku-core`（如需新增中立数据类型）与 `docs/`。**
 
 ## 前置（先读）
 
-- `docs/REMOTE_0.2.1.md` 与 `crates/arc-deck-dsh/src/remote/`：上一件任务（w2-remote-transport）做的 host / rpc / mux 与协议核对。
+- `docs/REMOTE_0.2.1.md` 与 `crates/saiku-dsh/src/remote/`：上一件任务（w2-remote-transport）做的 host / rpc / mux 与协议核对。
 - `AGENTS.md` **P3–P16**（全部是会话层的坑：权威全文与增量、内部事件不是对话、`source.kind=="user"`、按 turn 归并、
   follow 的快照即 opening、快照只是一页要往回翻、子 agent 的父地址、follow 会 promote 会话、实时帧带包装、
   onEvent 只在投影变化时回调、当轮作用域的断言）。每一条在 Rust 版里都要有对应处理或说明为何不再适用。
-- C# 参考：`arc-deck-dsh/src/ArcDeck.Dsh/Harness/HarnessSessionClient.cs`、`DshProjection.cs`（对 0.1.6 成立，要按 0.2.1 核对）。
+- C# 参考：`saiku-dsh/src/Saiku.Dsh/Harness/HarnessSessionClient.cs`、`DshProjection.cs`（对 0.1.6 成立，要按 0.2.1 核对）。
 - DSH 源码：`REFS/deepseek-harness/packages/api/session-controller/src/`（`list.ts`、`history.ts`、`control.ts`、`commands.ts`、
   `assistant-stream.ts`、`catalog.ts`、`model-selection-projection.ts`、`types.ts`、`remote-events.ts`）。
-- Rust 现有投影：`crates/arc-deck-dsh/src/projection.rs`（SDK 路径用的）。**优先复用**；Remote 的事件与 SDK 有差异时扩展它，
+- Rust 现有投影：`crates/saiku-dsh/src/projection.rs`（SDK 路径用的）。**优先复用**；Remote 的事件与 SDK 有差异时扩展它，
   不要另写一份平行的投影（PRODUCT_PLAN：两条传输共用事件投影）。
 
 ## 要做的
@@ -22,10 +22,10 @@
    子 agent 用父地址（P13）。
 2. 事件 → 产品视图：消息按 turn 归并；助手正文以权威全文替换流式段落（P4）；思考块、工具调用与结果配对、失败块
    （`finish.reason.failure` 是模型失败的唯一出口，P3）；内部簿记事件不进对话（P5/P6）。输出一个 TUI 能直接画的中立视图类型
-   （放 `arc-deck-core` 或 `arc-deck-dsh`，**不依赖 ratatui**）。增量更新要有「哪条消息变了」的信息，供界面局部刷新。
+   （放 `saiku-core` 或 `saiku-dsh`，**不依赖 ratatui**）。增量更新要有「哪条消息变了」的信息，供界面局部刷新。
 3. 审批：把 DSH 的审批请求（approval 相关事件 / 方法，按源码找）暴露为「待应答的请求」+ 应答方法（允许一次 / 拒绝 / 按源码支持的选项）。
    本任务只做数据与方法，界面在 w4-tui-modes。
-4. 模型目录：`catalog.ts` 的结果转成中立类型，**字段要能填满** `crates/arc-deck-tui/src/catalog.rs` 的 `Provider` / `Model`
+4. 模型目录：`catalog.ts` 的结果转成中立类型，**字段要能填满** `crates/saiku-tui/src/catalog.rs` 的 `Provider` / `Model`
    （含 `efforts`、`release_date`、免费与否、不可用原因 —— 源码里没有的字段就留空，不编）。
 5. 测试
    - 离线：在 transport 那件任务的假服务端上加会话场景（快照 + live 帧、分页、子 agent、权威全文替换流式、内部事件被过滤、
@@ -43,7 +43,7 @@
 ## 验收
 
 ```
-cargo test -p arc-deck-core -p arc-deck-dsh --offline
-cargo test -p arc-deck-dsh --offline -- --ignored remote_live_
-cargo test -p arc-deck-dsh --offline -- --ignored remote_quota_
+cargo test -p saiku-core -p saiku-dsh --offline
+cargo test -p saiku-dsh --offline -- --ignored remote_live_
+cargo test -p saiku-dsh --offline -- --ignored remote_quota_
 ```

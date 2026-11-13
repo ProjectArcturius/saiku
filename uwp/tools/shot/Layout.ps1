@@ -53,7 +53,7 @@ public class LayoutProbe {
     return ok ? "per-monitor-v2" : "FAILED(数字可能被虚拟化)";
   }
 
-  public static IntPtr FindArcDeck() {
+  public static IntPtr FindSaiku() {
     foreach (var p in System.Diagnostics.Process.GetProcesses()) {
       if (p.ProcessName != "ApplicationFrameHost") continue;
       var hh = p.MainWindowHandle; if (hh == IntPtr.Zero) continue;
@@ -84,7 +84,7 @@ public class LayoutProbe {
 "DPI 感知: $([LayoutProbe]::MakeDpiAware())"
 ""
 
-$h = [LayoutProbe]::FindArcDeck()
+$h = [LayoutProbe]::FindSaiku()
 if ($h -eq [IntPtr]::Zero) { Write-Error "找不到 Saiku Deck 窗口"; exit 1 }
 
 [LayoutProbe]::Describe($h)

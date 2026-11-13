@@ -13,9 +13,9 @@ trap 'rm -rf -- "$stage"' EXIT
 install -Dm755 "$binary" "$stage/usr/bin/saiku"
 install -Dm644 LICENSE "$stage/usr/share/doc/saiku/LICENSE"
 install -Dm644 NOTICE "$stage/usr/share/doc/saiku/NOTICE"
-install -Dm644 crates/arc-deck-tui/LICENSE-OpenCode "$stage/usr/share/doc/saiku/LICENSE-OpenCode"
+install -Dm644 crates/saiku-tui/LICENSE-OpenCode "$stage/usr/share/doc/saiku/LICENSE-OpenCode"
 install -Dm644 docs/INSTALL.md "$stage/usr/share/doc/saiku/INSTALL.md"
-cat NOTICE LICENSE crates/arc-deck-tui/LICENSE-OpenCode > "$stage/usr/share/doc/saiku/copyright"
+cat NOTICE LICENSE crates/saiku-tui/LICENSE-OpenCode > "$stage/usr/share/doc/saiku/copyright"
 mkdir -p "$stage/DEBIAN" "$stage/debian"
 # dpkg-shlibdeps reads the ELF's actual imports, avoiding guessed libc dependencies.
 printf 'Source: saiku\n\nPackage: saiku\nArchitecture: any\nDescription: Saiku\n' > "$stage/debian/control"

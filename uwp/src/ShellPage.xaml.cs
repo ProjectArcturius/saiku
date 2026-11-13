@@ -5,7 +5,7 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Animation;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>
     /// 应用外壳：NavigationView + Frame。

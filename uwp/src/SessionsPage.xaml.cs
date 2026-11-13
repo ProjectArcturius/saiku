@@ -8,7 +8,7 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Navigation;
 
-namespace ArcDeck
+namespace Saiku
 {
     /// <summary>会话列表页。</summary>
     public sealed partial class SessionsPage : Page

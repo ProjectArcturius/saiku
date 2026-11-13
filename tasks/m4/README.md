@@ -41,13 +41,13 @@
 
 ## 三、派工
 
-在仓库根目录（`arc-deck/`）执行。`T` 是任务书目录的绝对路径。
+在仓库根目录（`saiku/`）执行。`T` 是任务书目录的绝对路径。
 
 ```bash
 T=$(pwd)/tasks/m4
-A_TUI="cargo test -p arc-deck-tui --offline"
-A_CLIPPY="cargo clippy -p arc-deck-tui --all-targets --offline --no-deps -- -D warnings"
-A_CLI="cargo test -p arc-deck-cli --features test-runtime --offline"
+A_TUI="cargo test -p saiku-tui --offline"
+A_CLIPPY="cargo clippy -p saiku-tui --all-targets --offline --no-deps -- -D warnings"
+A_CLI="cargo test -p saiku-cli --features test-runtime --offline"
 
 # 模板：每份任务书末尾的「验收」节里有几条，就带几条 --accept，原样照抄
 saiku run "$T/<id>.md" --id <id> --by <你是谁：claude|sol> --worktree dsh/<id> \
@@ -60,15 +60,15 @@ saiku report <id>           # 终态后：Saiku 采集的事实 vs 模型的陈�
 
 - `--permission full` 是 `--worktree` 的硬要求（worktree 的 `.git` 指向主仓，非 full 时里面每条 git 命令返回 128）。
 - 模型用用户配置的默认值（`opencode-go/deepseek-v4.1-flash`）；不要换。
-- **大文件都在 D 盘**（2026-10-14 起，C 盘已满）：用户配置 `worktree.dir = D:/arcdeck/wt/{task_id}`，`env.TEMP/TMP = D:\arcdeck\tmp`；
-  主仓构建输出由**本机未入库**的 `.cargo/config.toml` 指到 `D:/arcdeck/target-main`。换机器时这三处按那台机器的磁盘重配。
+- **大文件都在 D 盘**（2026-10-14 起，C 盘已满）：用户配置 `worktree.dir = D:/saiku/wt/{task_id}`，`env.TEMP/TMP = D:\saiku\tmp`；
+  主仓构建输出由**本机未入库**的 `.cargo/config.toml` 指到 `D:/saiku/target-main`。换机器时这三处按那台机器的磁盘重配。
 - 改了 saiku 自身的代码后，**先重编 release 并装到 `~/.cargo/bin` 再派工**（拿旧二进制派工，测的是旧代码）。
 
 ## 四、收工（每一件都要做，顺序不能省）
 
 1. `saiku report <id>`：先看「Saiku 采集的事实」（验收结果、改动文件），再看「模型的陈述」（**不是证据**）。
-2. **自己复跑验收**：在 `D:/arcdeck/wt/<id>` 里把任务书的验收命令原样跑一遍。
-3. **读 diff**（`git -C D:/arcdeck/wt/<id> status` / `diff`，新文件直接读）。重点看：
+2. **自己复跑验收**：在 `D:/saiku/wt/<id>` 里把任务书的验收命令原样跑一遍。
+3. **读 diff**（`git -C D:/saiku/wt/<id> status` / `diff`，新文件直接读）。重点看：
    - 是否越出任务书允许的文件范围；
    - 有没有为了让测试过而改弱断言、删测试、`#[ignore]` 掉失败的测试；
    - 有没有编数据（演示数字、硬编码的模型档位）；
@@ -82,13 +82,13 @@ saiku report <id>           # 终态后：Saiku 采集的事实 vs 模型的陈�
    而分支已在原 worktree 里检出，`git worktree add` 会失败。`--rerun` 把旧的运行记录挪到一边（`saiku report` 只看新的这次）。
 4. 在工人分支上提交（Conventional Commits，正文中文，写清**来源**：任务 id、模型、用时、步数，以及审阅者），然后：
    ```bash
-   git -C D:/arcdeck/wt/<id> add -A && git -C D:/arcdeck/wt/<id> commit -F <消息文件>
+   git -C D:/saiku/wt/<id> add -A && git -C D:/saiku/wt/<id> commit -F <消息文件>
    git cherry-pick <那个提交>              # 在主仓 main 上
    ```
    冲突时以 main 上已合并的接口为准改工人的代码，**改完重跑全量离线套件**。
 5. 主仓全量离线套件：
-   `cargo test -p arc-deck-core -p arc-deck-dsh -p arc-deck-cli -p arc-deck-tui --features arc-deck-cli/test-runtime --offline`
-6. 清理：`git worktree remove --force D:/arcdeck/wt/<id>`（每个 worktree 的构建目录约 0.4–1 GB）；分支保留。
+   `cargo test -p saiku-core -p saiku-dsh -p saiku-cli -p saiku-tui --features saiku-cli/test-runtime --offline`
+6. 清理：`git worktree remove --force D:/saiku/wt/<id>`（每个 worktree 的构建目录约 0.4–1 GB）；分支保留。
 7. 更新 `docs/M4_PLAN.md` 的状态行（填提交号）。
 8. **不推送**。推送等用户明确指示。
 
