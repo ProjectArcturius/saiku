@@ -102,6 +102,12 @@ pub struct PatchInput<'a> {
     /// 打开内核的内容检索索引（`session/search`）。Web 组合默认是 `never`（关着的），
     /// 交互面要用它做「搜会话内容」，逐次打开；worker 用不到，保持关闭。
     pub session_search: bool,
+    /// 摘掉**会停下来等人**的工具（`ask_user`）。
+    ///
+    /// 0.2.2 起内核多了一个"问人"的工具：夜班没人答、headless 更没人答，工人会停在
+    /// 一个永远不会有回答的问题上。0.2.1 没有这一行，写了只会让内核打印
+    /// `patch: entry not found`，所以调用方按版本判断（`contract::version_at_least`）。
+    pub blocking_tools: bool,
 }
 
 /// 生成 `--patch` 文件内容。
@@ -208,6 +214,10 @@ pub fn render_patch_with_routes(input: &PatchInput<'_>, extra_routes: &[RouteSpe
     }
     // 插件清单上报：同一类请求元数据，对 worker 没有用处。
     rows.push(json!({ "id": "plugin-package-inventory-deepseek", "disabled": true }));
+
+    if input.blocking_tools {
+        rows.push(json!({ "id": "tool-ask-user", "disabled": true }));
+    }
 
     rows.push(json!({
         "id": "system-prompt",
@@ -396,6 +406,7 @@ mod tests {
             persona_suffix: "",
             session_log_upload: false,
             session_search: false,
+            blocking_tools: false,
             guard,
         });
         serde_json::from_str::<Value>(&text).unwrap().as_array().unwrap().clone()
@@ -444,6 +455,28 @@ mod tests {
         assert_eq!(is_disabled(rows, "tool-web"), !web, "`tool-web` 的开关与 network={web} 不符");
     }
 
+    /// 0.2.2 起内核多了会等人的 `ask_user`：headless 必须摘掉，否则工人停在一个
+    /// 永远没有回答的问题上（docs/FRONTEND_MATRIX.md §F5）。
+    #[test]
+    fn blocking_tools_are_disabled_only_when_asked() {
+        let plan = resolve("workspace-development", "echo", None, &["."], &["."], true, false, false, json!({}), None)
+            .expect("策略应能解析");
+        let g = guard(&plan, Permission::Full).expect("guard 应能算出");
+        let render = |blocking: bool| {
+            let text = render_patch(&PatchInput {
+                route: &pi_route(),
+                persona_suffix: "",
+                session_log_upload: false,
+                session_search: false,
+                blocking_tools: blocking,
+                guard: &g,
+            });
+            serde_json::from_str::<Value>(&text).unwrap().as_array().unwrap().clone()
+        };
+        assert!(is_disabled(&render(true), "tool-ask-user"));
+        assert!(!render(false).iter().any(|r| r["id"] == "tool-ask-user"));
+    }
+
     /// 契约清单必须覆盖 patch 可能点名的每一行 —— 少一行，`saiku dsh doctor`
     /// 就会在升级时放过一个真实缺口。
     #[test]
@@ -457,6 +490,7 @@ mod tests {
                 persona_suffix: "",
                 session_log_upload: false,
                 session_search: search,
+                blocking_tools: false,
                 guard: &g,
             });
             let rows: Vec<Value> = serde_json::from_str(&text).unwrap();
@@ -483,6 +517,7 @@ mod tests {
             persona_suffix: "守则 {{x}}",
             session_log_upload: false,
             session_search: false,
+            blocking_tools: false,
             guard: &guard,
         });
         let v: Value = serde_json::from_str(&text).unwrap();
@@ -515,6 +550,7 @@ mod tests {
             persona_suffix: "",
             session_log_upload: true,
             session_search: false,
+            blocking_tools: false,
             guard: &guard,
         });
         let v: Value = serde_json::from_str(&text).unwrap();

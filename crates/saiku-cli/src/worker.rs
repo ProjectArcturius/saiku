@@ -225,7 +225,7 @@ fn runtime_command(
     run_dir: &Path,
 ) -> Result<RuntimeCommand, SpecError> {
     match &config.runtime {
-        RuntimeSpec::DshSdk { node, entry, profile, route, sandbox, session_log_upload, preamble, .. } => {
+        RuntimeSpec::DshSdk { node, entry, version, profile, route, sandbox, session_log_upload, preamble, .. } => {
             dsh_runtime_command(DshCommandInput {
                 config,
                 plan,
@@ -234,6 +234,7 @@ fn runtime_command(
                 profile,
                 route: route.as_ref(),
                 sandbox,
+                version,
                 session_log_upload: *session_log_upload,
                 preamble: preamble.as_deref(),
                 system_prompt,
@@ -255,6 +256,8 @@ struct DshCommandInput<'a> {
     profile: &'a str,
     route: Option<&'a saiku_core::config::RouteSpec>,
     sandbox: &'a str,
+    /// 钉住的内核版本：patch 里有些行只在新版本才有。
+    version: &'a str,
     session_log_upload: bool,
     preamble: Option<&'a Path>,
     system_prompt: &'a SystemPrompt,
@@ -306,6 +309,8 @@ fn dsh_runtime_command(input: DshCommandInput<'_>) -> Result<RuntimeCommand, Spe
         persona_suffix: &persona,
         session_log_upload: input.session_log_upload,
         session_search: false,
+        // headless 永远没人回答 ask_user；0.2.2 起这一行才存在，低版本写了会报 not found。
+        blocking_tools: saiku_dsh::contract::version_at_least(input.version, "0.2.2"),
         guard: &guard,
     });
 

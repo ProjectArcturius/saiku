@@ -117,6 +117,9 @@ pub fn interactive(input: InteractiveInput<'_>) -> SpecResult<InteractiveLaunch>
             session_log_upload: cfg.runtime.session_log_upload,
             guard: &guard,
             session_search: true,
+            // 交互面暂时也没有 ask_user 的应答 UI；装上就是一个会永远等下去的问题。
+            // F5 做完应答再打开（docs/FRONTEND_MATRIX.md）。
+            blocking_tools: crate::contract::version_at_least(&cfg.dsh_version(), "0.2.2"),
         },
         &extra,
     );

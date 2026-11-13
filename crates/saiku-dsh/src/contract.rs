@@ -256,6 +256,30 @@ pub const REQUIRED_ROWS: &[&str] = &[
     "llm-pi-ai",
 ];
 
+/// 版本比较：只比数字段，忽略预发布后缀（`0.2.2-rc.2` 视作 `0.2.2`）。
+///
+/// 用途只有一个 —— 判断某个**新增行**在不在：`tool-ask-user` 是 0.2.2 才有的，
+/// 在 0.2.1 上写它会让内核打印 `patch: entry not found`，属于自己制造的噪声。
+pub fn version_at_least(version: &str, minimum: &str) -> bool {
+    fn parts(raw: &str) -> Vec<u64> {
+        raw.split('-')
+            .next()
+            .unwrap_or("")
+            .split('.')
+            .map(|p| p.trim().parse::<u64>().unwrap_or(0))
+            .collect()
+    }
+    let (a, b) = (parts(version), parts(minimum));
+    for i in 0..a.len().max(b.len()) {
+        let x = a.get(i).copied().unwrap_or(0);
+        let y = b.get(i).copied().unwrap_or(0);
+        if x != y {
+            return x > y;
+        }
+    }
+    true
+}
+
 /// 快照路径：`<仓库>/contracts/dsh-<version>.json`。运行时不可知仓库位置，
 /// 所以由调用方给目录。
 pub fn contract_path(dir: &Path, version: &str) -> PathBuf {
@@ -275,6 +299,14 @@ pub fn save(path: &Path, contract: &Contract) -> Result<(), String> {
     std::fs::write(path, text + "\n").map_err(|e| format!("写 {} 失败：{e}", path.display()))
 }
 
+
+    #[test]
+    fn versions_compare_on_numbers_and_ignore_prerelease() {
+        assert!(version_at_least("0.2.2-rc.2", "0.2.2"));
+        assert!(version_at_least("0.2.2", "0.2.1-alpha.2"));
+        assert!(!version_at_least("0.2.1-alpha.2", "0.2.2"));
+        assert!(version_at_least("1.0.0", "0.2.9"));
+    }
 #[cfg(test)]
 mod tests {
     use super::*;
