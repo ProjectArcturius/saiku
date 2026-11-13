@@ -26,7 +26,7 @@
 
 use serde_json::{json, Value};
 
-use saiku_core::conversation::{ApprovalOutcome, ApprovalRequest};
+use saiku_core::conversation::{ApprovalOutcome, ApprovalRequest, Question, QuestionOption, QuestionRequest};
 
 use super::{RemoteError, RemoteFrame, RemoteMux, RemoteRpc, RemoteStream};
 
@@ -46,6 +46,8 @@ pub struct EventSubscription {
 pub enum Forwarded {
     /// 内核在等人回答一个审批。
     Approval(ApprovalRequest),
+    /// 内核在问人（`ask_user_question`）。不回就一直等。
+    Question(QuestionRequest),
     /// 别的 waterfall。调用方**要回 `Answer::Next`**（见模块头第 1 条）。
     Waterfall { request_id: String, event: String },
     /// 通知类事件：记下来就够了，不需要回答。
@@ -139,6 +141,8 @@ fn parse_item(item: &Value) -> Forwarded {
                     display_reason: display,
                     agent: item["agentId"].as_str().map(str::to_string),
                 })
+            } else if event == "user-questions/request" {
+                Forwarded::Question(parse_question(request_id, item))
             } else {
                 Forwarded::Waterfall { request_id, event }
             }
@@ -152,6 +156,92 @@ fn parse_item(item: &Value) -> Forwarded {
         },
         _ => Forwarded::Ignored,
     }
+}
+
+/// `user-questions/request` 的 `request.questions` → 中立类型。
+///
+/// 字段名是内核的**线上名**（`question` / `header` / `options[].label|description` /
+/// `multiSelect`），不是工具参数的 snake_case：工具层已经转过一次，瀑布上是驼峰。
+fn parse_question(request_id: String, item: &Value) -> QuestionRequest {
+    let request = &item["request"];
+    let questions = request["questions"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|q| {
+                    let id = q["id"].as_str()?.to_string();
+                    Some(Question {
+                        id,
+                        question: q["question"].as_str().unwrap_or_default().to_string(),
+                        header: q["header"].as_str().map(str::to_string),
+                        options: q["options"]
+                            .as_array()
+                            .map(|options| {
+                                options
+                                    .iter()
+                                    .filter_map(|option| {
+                                        Some(QuestionOption {
+                                            label: option["label"].as_str()?.to_string(),
+                                            description: option["description"].as_str().map(str::to_string),
+                                        })
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                        multi_select: q["multiSelect"].as_bool().unwrap_or(false),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    QuestionRequest {
+        request_id,
+        call_id: request["callId"].as_str().map(str::to_string),
+        agent: item["agentId"].as_str().map(str::to_string),
+        questions,
+    }
+}
+
+/// 回答一条提问：`{"kind":"result","value":{"answers":[…]}}`。
+///
+/// `selected` 里放**选项 label**（内核按 label 对，不按序号）；跳过一题就留空数组。
+pub async fn answer_question(
+    rpc: &RemoteRpc,
+    client_id: &str,
+    request_id: &str,
+    answers: &[saiku_core::conversation::QuestionAnswer],
+) -> Result<(), RemoteError> {
+    rpc.call(
+        EVENTS_RESULT_ENDPOINT,
+        json!({ "args": {
+            "clientId": client_id,
+            "eventId": request_id,
+            "outcome": question_outcome(answers),
+        } }),
+    )
+    .await
+    .map(|_| ())
+}
+
+/// 提问的应答体：`{"kind":"result","value":{"answers":[…]}}`。
+///
+/// `selected` 放**选项 label**（内核按 label 对，不按序号）；跳过一题 = 空数组。
+/// 自由输入放 `custom`，空串不发 —— 内核把它当「没填」。
+fn question_outcome(answers: &[saiku_core::conversation::QuestionAnswer]) -> Value {
+    let answers: Vec<Value> = answers
+        .iter()
+        .map(|answer| {
+            let mut item = json!({ "id": answer.id, "selected": answer.selected });
+            if let Some(custom) = &answer.custom
+                && !custom.is_empty()
+            {
+                item["custom"] = json!(custom);
+            }
+            item
+        })
+        .collect();
+    json!({ "kind": "result", "value": { "answers": answers } })
 }
 
 /// 把回答送回 Host。
@@ -217,17 +307,17 @@ mod tests {
         assert_eq!(request.agent.as_deref(), Some("agent-7"));
     }
 
-    /// 一个别家的 waterfall 必须能被认出来、回 `next`；把它当成审批弹出来会让人
-    /// 回答一个不是审批的问题。
+    /// 一个别家的 waterfall 必须能被认出来、回 `next`；把它当成审批或提问弹出来，
+    /// 会让人回答一个根本不是那个问题的问题。
     #[test]
     fn another_waterfall_is_recognised_not_mistaken_for_an_approval() {
         let forwarded = item(json!({
-            "type": "waterfall", "event": "user-questions/request", "eventId": "q",
+            "type": "waterfall", "event": "mcp/elicitation", "eventId": "q",
             "agentId": "a", "request": { "prompt": "?" }
         }));
         assert_eq!(
             forwarded,
-            Forwarded::Waterfall { request_id: "q".into(), event: "user-questions/request".into() }
+            Forwarded::Waterfall { request_id: "q".into(), event: "mcp/elicitation".into() }
         );
     }
 
@@ -246,4 +336,51 @@ mod tests {
         assert_eq!(outcome_value(ApprovalOutcome::Reject), Answer::Reject);
         assert_eq!(outcome_value(ApprovalOutcome::Unknown), Answer::Reject);
     }
+    #[test]
+    fn a_question_waterfall_becomes_a_neutral_request() {
+        let forwarded = item(json!({
+            "type": "waterfall",
+            "event": "user-questions/request",
+            "eventId": "q-1",
+            "agentId": "agent-1",
+            "request": {
+                "questions": [{
+                    "id": "pick",
+                    "question": "用哪个方案？",
+                    "header": "方案",
+                    "options": [
+                        { "label": "A", "description": "先做界面" },
+                        { "label": "B" }
+                    ],
+                    "multiSelect": false
+                }]
+            }
+        }));
+        let Forwarded::Question(request) = forwarded else {
+            panic!("应解析成提问：{forwarded:?}");
+        };
+        assert_eq!(request.request_id, "q-1");
+        assert_eq!(request.questions.len(), 1);
+        let question = &request.questions[0];
+        assert_eq!(question.id, "pick");
+        assert_eq!(question.question, "用哪个方案？");
+        assert_eq!(question.options[1].label, "B");
+        assert!(question.options[1].description.is_none());
+        assert!(!question.multi_select);
+    }
+
+    #[test]
+    fn a_question_answer_carries_labels_and_omits_empty_custom() {
+        use saiku_core::conversation::QuestionAnswer;
+        let outcome = question_outcome(&[
+            QuestionAnswer { id: "pick".into(), selected: vec!["A".into()], custom: Some(String::new()) },
+            QuestionAnswer { id: "free".into(), selected: vec![], custom: Some("手写".into()) },
+        ]);
+        assert_eq!(outcome["kind"], "result");
+        let answers = &outcome["value"]["answers"];
+        assert_eq!(answers[0]["selected"][0], "A");
+        assert!(answers[0].get("custom").is_none(), "空 custom 不该发：{answers}");
+        assert_eq!(answers[1]["custom"], "手写");
+    }
+
 }

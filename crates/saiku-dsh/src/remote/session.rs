@@ -150,6 +150,16 @@ impl SessionClient {
         parse_commands(&value)
     }
 
+    /// 回答一条 `Event::Question`（走 `$events/result` 的 waterfall 结果）。
+    pub async fn answer_question(
+        &self,
+        client_id: &str,
+        request_id: &str,
+        answers: &[saiku_core::conversation::QuestionAnswer],
+    ) -> Result<(), RemoteError> {
+        events::answer_question(&self.rpc, client_id, request_id, answers).await
+    }
+
     /// 打开转发事件流。审批请求走这条流（见 `events.rs`）。
     pub async fn subscribe_events(&self) -> Result<EventSubscription, RemoteError> {
         EventSubscription::open(&self.mux).await

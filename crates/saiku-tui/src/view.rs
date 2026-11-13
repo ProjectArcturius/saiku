@@ -1144,6 +1144,7 @@ fn popup(frame: &mut Frame, app: &App, dialog: &Dialog, area: Rect, t: &Theme) {
         Dialog::Sessions | Dialog::Runs | Dialog::Agents | Dialog::Permissions | Dialog::Theme
         | Dialog::Subagents
         | Dialog::Kernel
+        | Dialog::Question
         | Dialog::Stash
         | Dialog::Approval(_)
         | Dialog::Confirm(_)
@@ -1159,6 +1160,10 @@ fn popup(frame: &mut Frame, app: &App, dialog: &Dialog, area: Rect, t: &Theme) {
         Dialog::Permissions => "授权级别",
         Dialog::Subagents => "子 agent 会话",
         Dialog::Kernel => "内核命令",
+        Dialog::Question => app
+            .current_question()
+            .map(|question| question.question.as_str())
+            .unwrap_or("内核在等你回答"),
         Dialog::Stash => "暂存的草稿",
         Dialog::Theme => return,
         // 上面已经把其余分支返回掉了；这里给编译器一个穷尽的分支。
@@ -1227,6 +1232,24 @@ fn popup(frame: &mut Frame, app: &App, dialog: &Dialog, area: Rect, t: &Theme) {
                 (format!("{}{running}{idle}", row.label), true)
             })
             .collect(),
+        Dialog::Question => app
+            .current_question()
+            .map(|question| {
+                question
+                    .options
+                    .iter()
+                    .enumerate()
+                    .map(|(index, option)| {
+                        let detail = option
+                            .description
+                            .as_deref()
+                            .map(|d| format!(" — {d}"))
+                            .unwrap_or_default();
+                        (format!("{}. {}{detail}", index + 1, option.label), true)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
         Dialog::Kernel => app
             .kernel_commands
             .iter()
@@ -1270,6 +1293,7 @@ fn popup(frame: &mut Frame, app: &App, dialog: &Dialog, area: Rect, t: &Theme) {
         let empty = match dialog {
             Dialog::Subagents => "这个会话还没有派出子 agent",
             Dialog::Kernel => "内核没有注册人类命令",
+            Dialog::Question => "这道题没有选项：Esc 跳过（自由输入还没接）",
             _ => "没有匹配项",
         };
         rows.push((empty.into(), false));

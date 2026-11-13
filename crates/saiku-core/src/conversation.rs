@@ -244,6 +244,50 @@ pub struct ApprovalRequest {
     pub agent: Option<String>,
 }
 
+/// 内核在**问人**（`ask_user_question` 工具走 `user-questions/request` 瀑布）。
+///
+/// 结构与审批刻意分开：审批是「准/不准」，提问是「选哪个/填什么」，混成一个类型会让
+/// 界面在两种情况里各写一半分支。`request_id` 同样是应答时要带回来的瀑布 id。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct QuestionRequest {
+    pub request_id: String,
+    pub call_id: Option<String>,
+    pub agent: Option<String>,
+    pub questions: Vec<Question>,
+}
+
+/// 一道题。`id` 是题库里的 id（应答按它回填），不是显示文本。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Question {
+    pub id: String,
+    /// 题干。
+    pub question: String,
+    pub header: Option<String>,
+    /// 选项；空 = 纯自由输入。
+    pub options: Vec<QuestionOption>,
+    /// 内核的 `multiSelect`：可多选。
+    pub multi_select: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct QuestionOption {
+    pub label: String,
+    pub description: Option<String>,
+}
+
+/// 一道题的答案。`selected` 是**选项 label**（内核按 label 对，不按序号）。
+/// 跳过一题 = `selected` 为空；自由输入放在 `custom`。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct QuestionAnswer {
+    pub id: String,
+    pub selected: Vec<String>,
+    pub custom: Option<String>,
+}
+
 /// 审批的应答。DSH 有四种结果，我们只答两种：
 /// 「允许这一次」与「拒绝」。`cancelled` / `unavailable` 是内核自己的判断，不是用户的选择。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

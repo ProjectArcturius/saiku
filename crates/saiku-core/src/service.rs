@@ -73,6 +73,11 @@ pub enum Command {
         #[serde(default)]
         session_id: Option<String>,
     },
+    /// 回答一条 [`Event::Question`]。`answers` 按题 id 回填；跳过某题就留空 `selected`。
+    AnswerQuestion {
+        request_id: String,
+        answers: Vec<crate::conversation::QuestionAnswer>,
+    },
     /// 收掉后端（进程内：TUI 退出时）。IPC 上只断开本连接，不关服务。
     Shutdown,
     #[serde(other)]
@@ -114,6 +119,12 @@ pub enum Event {
     Search { query: String, items: Vec<SearchHit> },
     /// 内核注册的人类命令。`name` 不带前导斜杠（与内核一致）。
     KernelCommands { items: Vec<KernelCommandInfo> },
+    /// 内核在问人：一道或多道题，**不回答就会一直等**（`ask_user_question`）。
+    Question {
+        request: crate::conversation::QuestionRequest,
+    },
+    /// 那条提问作废了（这一轮被取消、或内核自己收了回去）。
+    QuestionClosed { request_id: String, reason: String },
     /// 给人看的一句话。`level` 决定颜色，不决定行为。
     Notice { level: NoticeLevel, text: String },
     #[serde(other)]
@@ -206,6 +217,30 @@ mod tests {
             Command::KernelCommand { session_id: None, line: "/compact".into() },
             "session_id 可省略"
         );
+    }
+
+    /// 提问与回答各一条：旧前端收到 `Question` 会按 `Unknown` 收下，不会整条连接失败。
+    #[test]
+    fn question_events_and_answers_round_trip() {
+        use crate::conversation::{Question, QuestionAnswer, QuestionRequest};
+        let request = QuestionRequest {
+            request_id: "q-1".into(),
+            call_id: None,
+            agent: None,
+            questions: vec![Question { id: "pick".into(), question: "选哪个？".into(), ..Default::default() }],
+        };
+        let event = Event::Question { request };
+        let raw = serde_json::to_string(&event).unwrap();
+        assert!(raw.contains(r#""event":"question""#), "{raw}");
+        assert_eq!(serde_json::from_str::<Event>(&raw).unwrap(), event);
+
+        let command = Command::AnswerQuestion {
+            request_id: "q-1".into(),
+            answers: vec![QuestionAnswer { id: "pick".into(), selected: vec!["A".into()], custom: None }],
+        };
+        let raw = serde_json::to_string(&command).unwrap();
+        assert!(raw.contains(r#""op":"answer_question""#), "{raw}");
+        assert_eq!(serde_json::from_str::<Command>(&raw).unwrap(), command);
     }
 
     #[test]

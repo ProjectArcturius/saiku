@@ -161,6 +161,10 @@ async fn run(input: ServiceInput, mut commands: mpsc::UnboundedReceiver<Command>
                     Some(Forwarded::Approval(request)) => {
                         send(Event::Approval { request });
                     }
+                    Some(Forwarded::Question(request)) => {
+                        // 提问是真的会等人的：界面上必须出现，否则这一轮停在这里。
+                        send(Event::Question { request });
+                    }
                     Some(Forwarded::Waterfall { request_id, event }) => {
                         // 不是审批的 waterfall 一律交回 Host 的链。不回答等于把它短路掉。
                         match &events_client {
@@ -181,10 +185,16 @@ async fn run(input: ServiceInput, mut commands: mpsc::UnboundedReceiver<Command>
                             }),
                         }
                     }
-                    Some(Forwarded::Cancelled { request_id }) => send(Event::ApprovalClosed {
-                        request_id,
-                        reason: "内核撤回了这条审批（这一轮被取消或已经结束）".into(),
-                    }),
+                    Some(Forwarded::Cancelled { request_id }) => {
+                        send(Event::ApprovalClosed {
+                            request_id: request_id.clone(),
+                            reason: "内核撤回了这条审批（这一轮被取消或已经结束）".into(),
+                        });
+                        send(Event::QuestionClosed {
+                            request_id,
+                            reason: "这条提问已经不需要回答了（这一轮被取消或已经结束）".into(),
+                        });
+                    }
                     Some(Forwarded::Emit { .. } | Forwarded::Ignored) => {}
                     None => events_client = None,
                     Some(Forwarded::Ended(reason)) => {
@@ -274,6 +284,26 @@ async fn run(input: ServiceInput, mut commands: mpsc::UnboundedReceiver<Command>
                     Err(error) => send(Event::Notice {
                         level: NoticeLevel::Warning,
                         text: format!("读内核命令表失败：{error}"),
+                    }),
+                }
+            }
+            Command::AnswerQuestion { request_id, answers } => {
+                match &events_client {
+                    Some(client_id) => {
+                        match client.answer_question(client_id, &request_id, &answers).await {
+                            Ok(()) => send(Event::Notice {
+                                level: NoticeLevel::Info,
+                                text: "已回答内核的提问".into(),
+                            }),
+                            Err(error) => send(Event::Notice {
+                                level: NoticeLevel::Error,
+                                text: format!("回答没有送达：{error}"),
+                            }),
+                        }
+                    }
+                    None => send(Event::Notice {
+                        level: NoticeLevel::Error,
+                        text: "提问通道已断开，这条回答没有去处".into(),
                     }),
                 }
             }

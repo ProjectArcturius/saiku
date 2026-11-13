@@ -26,6 +26,16 @@ use crate::{
 
 /// 弹层。带状态的那几个（模型 / provider / effort）的渲染与选择规则都在
 /// `model_dialog` 里，这里只保留「当前开着哪个」。
+/// 一道正在回答的提问：第几题、选中了哪些选项、已经答好的部分。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct QuestionState {
+    request: saiku_core::conversation::QuestionRequest,
+    index: usize,
+    /// 每题已选项（与 `request.questions` 等长；多选用）。
+    marks: Vec<Vec<bool>>,
+    answers: Vec<saiku_core::conversation::QuestionAnswer>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Dialog {
     Commands,
@@ -48,6 +58,8 @@ pub(crate) enum Dialog {
     Stash,
     /// 内核注册的人类命令（`commands/list`）。
     Kernel,
+    /// 内核在问人（`ask_user_question`）：不回答就一直等，所以它必须压在最上面。
+    Question,
     /// 工具的完整输出 / 本会话的 diff（可滚动、可搜索）。
     Viewer(Viewer),
     Models(ModelDialogState),
@@ -143,6 +155,10 @@ pub(crate) struct App {    pub boot: Boot,
     kernel_wanted: bool,
     /// 会话换了、命令表可能不同：下一次打 `/` 时先取一次。
     kernel_stale: bool,
+    /// 正在回答的提问（内核的 `ask_user_question`）。
+    question: Option<QuestionState>,
+    /// 排队等着的提问（先来先答；同时出现多道题的少见，但不能丢）。
+    question_queue: Vec<saiku_core::conversation::QuestionRequest>,
     /// 下一次请求要用的模型。启动时来自配置，模型对话框改动它。
     pub model: Option<ModelRef>,
     pub model_prefs: ModelPrefs,
@@ -265,6 +281,8 @@ impl App {
             kernel_commands: Vec::new(),
             kernel_wanted: false,
             kernel_stale: true,
+            question: None,
+            question_queue: Vec::new(),
             theme,
             editor,
             runs: Vec::new(),
@@ -478,6 +496,26 @@ impl App {
                     self.conversation = Some(*conversation);
                 }
             }
+            E::Question { request } => {
+                if self.question.is_some() || self.dialog.is_some() {
+                    self.question_queue.push(request);
+                    self.notice = format!(
+                        "内核在问你（还有 {} 道待答）；先处理当前这一道",
+                        self.question_queue.len()
+                    );
+                    self.toast("内核在等你回答", true);
+                } else {
+                    self.open_question(request);
+                }
+            }
+            E::QuestionClosed { request_id, reason } => {
+                self.question_queue.retain(|q| q.request_id != request_id);
+                if self.question.as_ref().is_some_and(|q| q.request.request_id == request_id) {
+                    self.question = None;
+                    self.dialog = None;
+                }
+                self.notice = reason;
+            }
             E::KernelCommands { items } => {
                 self.kernel_commands = items;
                 if self.kernel_wanted {
@@ -656,6 +694,10 @@ impl App {
             Some(Dialog::Subagents) => self.subagent_rows().len(),
             Some(Dialog::Stash) => self.preferences.stash.len(),
             Some(Dialog::Kernel) => self.kernel_commands.len(),
+            Some(Dialog::Question) => self
+                .current_question()
+                .map(|question| question.options.len().max(1))
+                .unwrap_or(1),
             Some(Dialog::Confirm(_) | Dialog::Approval(_) | Dialog::Viewer(_)) => 1,
             // Help scrolls instead of selecting; non-zero keeps the generic clamp harmless.
             Some(Dialog::Help) => 1,
@@ -1833,6 +1875,99 @@ impl App {
         rows
     }
 
+    /// 打开一道提问。它压在最上面：内核在等，其它弹层都得让路。
+    fn open_question(&mut self, request: saiku_core::conversation::QuestionRequest) {
+        let marks = request
+            .questions
+            .iter()
+            .map(|question| vec![false; question.options.len()])
+            .collect();
+        self.question = Some(QuestionState {
+            request,
+            index: 0,
+            marks,
+            answers: Vec::new(),
+        });
+        self.choice = 0;
+        self.dialog = Some(Dialog::Question);
+        self.notice = "内核在等你回答；↑↓ 选，Enter 确认，Esc 跳过".into();
+    }
+
+    pub(crate) fn current_question(&self) -> Option<&saiku_core::conversation::Question> {
+        let state = self.question.as_ref()?;
+        state.request.questions.get(state.index)
+    }
+
+    /// 确认当前这一题（单选用当前高亮项；没有选项就是自由输入，留空）。
+    fn answer_current_question(&mut self, requests: &Sender<Request>) {
+        let Some(state) = self.question.as_mut() else { return };
+        let Some(question) = state.request.questions.get(state.index).cloned() else {
+            self.question = None;
+            self.dialog = None;
+            return;
+        };
+        let selected = if question.multi_select {
+            let picked: Vec<String> = question
+                .options
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| state.marks[state.index].get(*index).copied().unwrap_or(false))
+                .map(|(_, option)| option.label.clone())
+                .collect();
+            picked
+        } else {
+            question
+                .options
+                .get(self.choice)
+                .map(|option| vec![option.label.clone()])
+                .unwrap_or_default()
+        };
+        state.answers.push(saiku_core::conversation::QuestionAnswer {
+            id: question.id.clone(),
+            selected,
+            custom: None,
+        });
+        state.index += 1;
+        let done = state.index >= state.request.questions.len();
+        if !done {
+            self.choice = 0;
+            return;
+        }
+        let finished = self.question.take().expect("刚才是 Some");
+        self.dialog = None;
+        self.send_answers(finished, requests);
+    }
+
+    /// 跳过剩下的题（Esc）：`selected` 留空，内核按「没选」处理。
+    fn skip_question(&mut self, requests: &Sender<Request>) {
+        let Some(mut state) = self.question.take() else { return };
+        while state.index < state.request.questions.len() {
+            let question = &state.request.questions[state.index];
+            state.answers.push(saiku_core::conversation::QuestionAnswer {
+                id: question.id.clone(),
+                selected: Vec::new(),
+                custom: None,
+            });
+            state.index += 1;
+        }
+        self.dialog = None;
+        self.send_answers(state, requests);
+    }
+
+    fn send_answers(&mut self, state: QuestionState, requests: &Sender<Request>) {
+        let count = state.answers.len();
+        let _ = requests.send(Request::Session(
+            saiku_core::service::Command::AnswerQuestion {
+                request_id: state.request.request_id.clone(),
+                answers: state.answers.clone(),
+            },
+        ));
+        self.notice = format!("已回答 {count} 道题");
+        if let Some(next) = self.question_queue.pop() {
+            self.open_question(next);
+        }
+    }
+
     fn open_session(&mut self, id: String, requests: &Sender<Request>) {
         if let Some(old) = self.session_id.replace(id.clone())
             && old != id
@@ -1973,6 +2108,7 @@ impl App {
                 self.editor.insert(&draft);
             }
             Some(Dialog::Stash) => {}
+            Some(Dialog::Question) => self.answer_current_question(requests),
             Some(Dialog::Kernel) => {
                 if let Some(item) = self.kernel_commands.get(self.choice).cloned() {
                     self.dialog = None;
@@ -2218,6 +2354,11 @@ impl App {
             if matches!(self.dialog, Some(Dialog::Confirm(_))) {
                 self.dialog = None;
                 self.notice = "已取消改动；这一轮继续".into();
+                return false;
+            }
+            // 提问的 Esc 是「跳过这道题」，不是「把弹层关掉」：关掉等于让内核继续等。
+            if matches!(self.dialog, Some(Dialog::Question)) {
+                self.skip_question(requests);
                 return false;
             }
             if self.dialog.take().is_some() {
@@ -4222,6 +4363,76 @@ mod tests {
         assert!(app.preferences.stash.is_empty());
         let saved = serde_json::to_string(&app.preferences).unwrap();
         assert!(saved.contains("\"stash\""), "暂存跟偏好一起落盘：{saved}");
+    }
+
+    /// 内核提问必须立刻出现在屏幕上：不回答，这一轮就停在那里。
+    #[test]
+    fn a_question_opens_a_dialog_and_enter_answers_it() {
+        use saiku_core::conversation::{Question, QuestionOption, QuestionRequest};
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut app = app();
+        ready(&mut app);
+        app.update(Update::Session(saiku_core::service::Event::Question {
+            request: QuestionRequest {
+                request_id: "q-1".into(),
+                call_id: Some("call-1".into()),
+                agent: None,
+                questions: vec![Question {
+                    id: "pick".into(),
+                    question: "用哪个方案？".into(),
+                    header: Some("方案".into()),
+                    options: vec![
+                        QuestionOption { label: "A".into(), description: None },
+                        QuestionOption { label: "B".into(), description: None },
+                    ],
+                    multi_select: false,
+                }],
+            },
+        }));
+        assert_eq!(app.dialog, Some(Dialog::Question), "提问要压在最上面");
+        app.choice = 1;
+        app.select(&tx);
+        match rx.recv().unwrap() {
+            Request::Session(saiku_core::service::Command::AnswerQuestion { request_id, answers }) => {
+                assert_eq!(request_id, "q-1");
+                assert_eq!(answers[0].id, "pick");
+                assert_eq!(answers[0].selected, vec!["B".to_string()]);
+            }
+            other => panic!("应发回答：{other:?}"),
+        }
+        assert_eq!(app.dialog, None);
+    }
+
+    /// Esc 是「跳过这条提问」，不是「把弹层关掉」——关掉等于让内核继续等。
+    #[test]
+    fn escape_skips_a_question_instead_of_hiding_it() {
+        use saiku_core::conversation::{Question, QuestionRequest};
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut app = app();
+        ready(&mut app);
+        app.update(Update::Session(saiku_core::service::Event::Question {
+            request: QuestionRequest {
+                request_id: "q-2".into(),
+                call_id: None,
+                agent: None,
+                questions: vec![Question {
+                    id: "free".into(),
+                    question: "补充说明？".into(),
+                    header: None,
+                    options: Vec::new(),
+                    multi_select: false,
+                }],
+            },
+        }));
+        assert_eq!(app.dialog, Some(Dialog::Question));
+        app.input(key(KeyCode::Esc), &tx);
+        match rx.recv().unwrap() {
+            Request::Session(saiku_core::service::Command::AnswerQuestion { answers, .. }) => {
+                assert!(answers[0].selected.is_empty(), "跳过 = 空选择");
+            }
+            other => panic!("应发回答：{other:?}"),
+        }
+        assert_eq!(app.dialog, None);
     }
 
     /// `/kernel` 先向内核要命令表，拿到后打开列表；选中一条只**插入**输入框，不直接执行。
