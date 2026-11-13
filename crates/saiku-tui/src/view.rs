@@ -324,6 +324,27 @@ fn footer_row(frame: &mut Frame, app: &App, area: Rect, t: &Theme) {
         left.push(key("esc".into()));
         left.push(label(" 中断"));
     }
+    // 目标：常驻的左栏片段。它比通知重要 —— 通知会消失，而「这条会话还在为目标跑」
+    // 是用户决定要不要等下去的依据（docs/GOAL_MODE.md）。
+    if let Some(goal) = app.conversation.as_ref().and_then(|c| c.goal.as_ref()) {
+        use saiku_core::conversation::GoalPhase;
+        let (text, color) = match goal.phase {
+            GoalPhase::Active => (
+                format!("◎ 目标 {}/{}", goal.rounds, goal.max_rounds.unwrap_or(0)),
+                accent(t),
+            ),
+            GoalPhase::Complete => ("◎ 目标完成".to_string(), muted(t)),
+            GoalPhase::Blocked => (
+                format!("◎ 目标受阻{}", goal.blocked_reason.as_deref().map(|r| format!("：{r}")).unwrap_or_default()),
+                warning(t),
+            ),
+            GoalPhase::Unknown => ("◎ 目标".to_string(), muted(t)),
+        };
+        if !left.is_empty() {
+            left.push(Span::raw("  "));
+        }
+        left.push(Span::styled(text, Style::default().fg(color)));
+    }
     if !app.notice.is_empty() {
         let alarming = matches!(app.backend, BackendState::Failed { .. })
             || app.boot.config_error.is_some()
@@ -1471,6 +1492,17 @@ fn dialog_rect(area: Rect) -> Rect {
 
 /// The palette and help are as long as the registry; a fixed 18 rows would hide whole
 /// categories (and their reasons) with no indication that there is more below.
+fn dialog_rect_help(area: Rect) -> Rect {
+    let w = 96.min(area.width.saturating_sub(2));
+    let h = area.height.saturating_sub(2).max(4);
+    Rect::new(
+        area.x + area.width.saturating_sub(w) / 2,
+        area.y + area.height.saturating_sub(h) / 2,
+        w,
+        h,
+    )
+}
+
 fn dialog_rect_tall(area: Rect) -> Rect {
     let w = 72.min(area.width.saturating_sub(2));
     let h = area.height.saturating_sub(2).max(4);
@@ -1654,7 +1686,9 @@ fn commands_popup(frame: &mut Frame, app: &App, area: Rect, t: &Theme) {
 /// Help lists every binding by category. The reason for an unavailable action is part of the
 /// row, not a tooltip: terminals have no hover.
 fn help_popup(frame: &mut Frame, app: &App, area: Rect, t: &Theme) {
-    let rect = dialog_rect_tall(area);
+    // 参考页比普通对话框宽：条目多一行就可能让标题折行，而折行会把「Ctrl+P」挤出可视区
+    // —— 帮助页自己先违反「全部绑定一眼看得全」就没意义了。
+    let rect = dialog_rect_help(area);
     let inner = dialog_frame(frame, rect, "帮助", t);
     let mut lines: Vec<Line<'static>> = Vec::new();
     let mut category: Option<Category> = None;
@@ -1684,10 +1718,11 @@ fn help_popup(frame: &mut Frame, app: &App, area: Rect, t: &Theme) {
             Span::raw(clean(&detail)),
         ]));
     }
-    // Only the footer row is reserved; at 120×40 the whole reference must fit without
-    // scrolling, because Ctrl+P lives on the very last row.
-    let visible = inner.height.saturating_sub(1) as usize;
+    // 只有**溢出时**才留一行放「↓ 还有」；刚好装得下时把它还给内容 ——
+    // 反馈里最烦的就是「明明只差一行却说还有」。Ctrl+P 在最后一行，不能被挤掉。
     let total = lines.len();
+    let full = inner.height as usize;
+    let visible = if total <= full { full } else { full.saturating_sub(1) };
     let start = app.help_scroll.min(lines.len().saturating_sub(1));
     frame.render_widget(
         Paragraph::new(
@@ -2749,6 +2784,35 @@ mod tests {
         );
     }
 
+    /// 目标要常驻可见：通知会消失，而「这条会话还在为目标跑」是决定等不等下去的依据。
+    #[test]
+    fn an_active_goal_is_shown_on_the_footer() {
+        use saiku_core::conversation::{Conversation, GoalPhase, GoalState};
+        let mut a = app();
+        a.session_id = Some("s1".into());
+        a.update(Update::Session(saiku_core::service::Event::Conversation {
+            conversation: Box::new(Conversation {
+                session_id: "s1".into(),
+                goal: Some(GoalState {
+                    objective: Some("补齐导航页".into()),
+                    phase: GoalPhase::Active,
+                    rounds: 3,
+                    max_rounds: Some(24),
+                    blocked_reason: None,
+                }),
+                ..Conversation::default()
+            }),
+        }));
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        terminal.draw(|f| draw(f, &mut a)).unwrap();
+        let buffer = terminal.backend().buffer();
+        assert!(
+            contains_wrapped(buffer, "目标 3/24"),
+            "footer 应显示目标轮次：{:?}",
+            row_text(buffer, 38)
+        );
+    }
+
     /// Help is generated from the registry + keymap; if either drifts, this fails rather than
     /// the page quietly documenting keys that do nothing.
     #[test]
@@ -2967,6 +3031,7 @@ mod tests {
                     }),
                     Message::Assistant(turn),
                 ],
+                goal: None,
                 history_complete: true,
                 running: false,
                 model: None,
@@ -3025,6 +3090,7 @@ mod tests {
                     }),
                     Message::Assistant(turn),
                 ],
+                goal: None,
                 history_complete: true,
                 running: false,
                 model: Some(ModelChoice {

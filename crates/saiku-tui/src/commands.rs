@@ -29,6 +29,8 @@ pub(crate) enum Action {
     Timeline,
     /// 本会话派出的子 agent 会话（与回到父会话）。
     Subagents,
+    /// 目标模式：把这件事建成持久目标，由内核一轮一轮推到完成。
+    Goal,
     /// 暂存当前草稿；输入框为空时列出暂存的草稿取回。
     Stash,
     /// 还有哪几条审批在等回答。
@@ -284,6 +286,18 @@ pub(crate) const ENTRIES: &[Entry] = &[
         category: Category::Session,
         slash: Some("/subagents"),
         arg: None,
+        keys: &[],
+        context: Context::Composer,
+        unavailable: None,
+        palette: true,
+    },
+    Entry {
+        action: Action::Goal,
+        id: "session.goal",
+        title: "立目标：逐轮推进到完成",
+        category: Category::Session,
+        slash: Some("/goal"),
+        arg: Some("<目标>"),
         keys: &[],
         context: Context::Composer,
         unavailable: None,

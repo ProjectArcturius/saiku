@@ -926,6 +926,20 @@ impl App {
                     self.open_dialog(Dialog::Subagents);
                 }
             }
+            Action::Goal => match arg {
+                Some(text) if !text.trim().is_empty() => {
+                    // 与 headless 的 --goal 同一个出处：文案只有一份，见 `saiku_core::goal`。
+                    let text = saiku_core::goal::directive(
+                        text.trim(),
+                        saiku_core::goal::DEFAULT_MAX_ROUNDS,
+                    );
+                    self.send_prompt(text, requests);
+                    if !self.notice.starts_with("执行端") && !self.notice.starts_with("上一条") {
+                        self.notice = "目标已发出：内核会建目标并逐轮推进（`/sessions` 里能看到进度）".into();
+                    }
+                }
+                _ => self.notice = "用法：/goal <目标>；例：/goal 把导航页补齐并通过设置相关测试".into(),
+            },
             Action::Approvals => match self.approvals.first().cloned() {
                 Some(request) => self.open_dialog(Dialog::Approval(Box::new(request))),
                 None => self.notice = "没有待答的审批".into(),
@@ -1457,11 +1471,17 @@ impl App {
     }
     /// 会话这条路：没有当前会话就由服务新建；运行中也能发（内核按 `queue` 排到下一轮）。
     fn submit_to_session(&mut self, requests: &Sender<Request>) -> bool {
+        let text = self.editor.take();
+        self.send_prompt(text, requests)
+    }
+
+    /// 把一段文本作为用户消息发出去。`/goal` 与普通提交共用这一条路 ——
+    /// 两条路各写一份的结果是「命令发出去没有乐观回显、也不排队」这类只有用起来才发现的差异。
+    fn send_prompt(&mut self, text: String, requests: &Sender<Request>) -> bool {
         if self.session_id.is_none() && self.pending.is_some() {
             self.notice = "上一条还在新建会话，请稍候".into();
             return false;
         }
-        let text = self.editor.take();
         if let Some(model) = &self.model {
             self.model_prefs.touch_recent(model);
             self.model_prefs_dirty = true;
@@ -3857,6 +3877,32 @@ mod tests {
         assert!(app.preferences.stash.is_empty());
         let saved = serde_json::to_string(&app.preferences).unwrap();
         assert!(saved.contains("\"stash\""), "暂存跟偏好一起落盘：{saved}");
+    }
+
+    /// `/goal` 走的是与 headless `--goal` 同一条提示词（`saiku_core::goal`）：
+    /// 两处各写一份，迟早出现「TUI 里的目标不生效、命令行里的生效」。
+    #[test]
+    fn goal_command_sends_the_shared_directive_as_a_prompt() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut app = app();
+        ready(&mut app);
+        let _ = app.execute(Action::Goal, Some("把导航页补齐"), &tx);
+        let Request::Session(Command::Prompt { text, .. }) = rx.recv().unwrap() else {
+            panic!("/goal 必须发一条 Prompt");
+        };
+        assert!(text.contains("把导航页补齐"), "{text}");
+        assert!(text.contains("create_goal"), "{text}");
+        assert!(text.contains("max_goal_rounds"), "{text}");
+    }
+
+    #[test]
+    fn goal_without_an_objective_explains_the_usage_and_sends_nothing() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut app = app();
+        ready(&mut app);
+        let _ = app.execute(Action::Goal, None, &tx);
+        assert!(app.notice.contains("/goal <目标>"), "{}", app.notice);
+        assert!(rx.try_recv().is_err(), "没有目标就不该发请求");
     }
 
     /// 子 agent：父会话里列出子会话；进了子会话第一行是回父会话，且不能直接发消息。

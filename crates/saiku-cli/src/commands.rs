@@ -530,10 +530,7 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
     }
     let mut instruction = instruction;
     if let Some(spec) = &goal {
-        instruction.push_str(&format!(
-            "\n\n---\n\n## 目标模式\n\n这次不是「答完就停」，是「做到完」。按下面四步做：\n\n             1. 第一步就调用 `create_goal` 建立会话目标，`max_goal_rounds` 设为 {}，objective 用这一行原文：\n   {}\n             2. 每轮做最小可验证的一步；做完用 `update_goal` 保持 active，不要停在提问上。\n             3. 全部达成时 `update_goal` 置 complete，并给出证据（命令输出、文件路径、提交号）。\n             4. 真被外部条件卡死时置 blocked 并写清卡点；不要用 complete 蒙混。\n",
-            spec.max_rounds, spec.objective
-        ));
+        instruction.push_str(&saiku_core::goal::directive(&spec.objective, spec.max_rounds));
     }
     let commands: Vec<&String> = acceptance
         .iter()

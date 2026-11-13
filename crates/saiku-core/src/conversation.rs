@@ -25,6 +25,61 @@ pub struct Conversation {
     pub running: bool,
     /// 下一轮会用的模型（内核的 `modelSelection.next`）。界面上「切换模型」作用于它。
     pub model: Option<ModelChoice>,
+    /// 这个会话的持久目标（DSH 的 goal）。`None` = 没有目标。
+    ///
+    /// 目标不是「一条更长的消息」：内核在每轮 idle 后自己接着推，前端只需要把它显示出来。
+    pub goal: Option<GoalState>,
+}
+
+/// 目标的可见状态。字段是产品语言，不是内核词汇 —— 换内核只改折叠层。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GoalState {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub objective: Option<String>,
+    pub phase: GoalPhase,
+    /// 已经开始的轮数（内核的 `roundsStarted`）。
+    pub rounds: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_rounds: Option<u64>,
+    /// 受阻原因码（`round-limit` / `model-reported` …）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blocked_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GoalPhase {
+    #[default]
+    Unknown,
+    Active,
+    Complete,
+    Blocked,
+}
+
+impl GoalPhase {
+    pub fn from_wire(raw: &str) -> Self {
+        match raw {
+            "active" => Self::Active,
+            "complete" => Self::Complete,
+            "blocked" => Self::Blocked,
+            _ => Self::Unknown,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Active => "active",
+            Self::Complete => "complete",
+            Self::Blocked => "blocked",
+        }
+    }
+
+    /// 目标还该不该被当成「在推进」。
+    pub fn is_active(self) -> bool {
+        matches!(self, Self::Active)
+    }
 }
 
 /// 一条消息。人说的话与助手的一轮分开 —— 一轮里助手的多个 step 并成一条（P8）。

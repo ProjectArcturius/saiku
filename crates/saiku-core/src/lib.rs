@@ -16,6 +16,7 @@ pub mod conversation;
 pub mod error;
 pub mod event;
 pub mod failure;
+pub mod goal;
 pub mod group_army;
 pub mod mode;
 pub mod paths;

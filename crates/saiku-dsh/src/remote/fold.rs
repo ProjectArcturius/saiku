@@ -30,8 +30,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use saiku_core::conversation::{
-    AssistantTurn, Block, Conversation, Message, ModelChoice, TextPart, TokenUsage, ToolCall,
-    ToolStatus, TurnState, UserMessage,
+    AssistantTurn, Block, Conversation, GoalPhase, GoalState, Message, ModelChoice, TextPart,
+    TokenUsage, ToolCall, ToolStatus, TurnState, UserMessage,
 };
 use serde_json::Value;
 
@@ -48,6 +48,7 @@ const KEPT_EVENTS: &[&str] = &[
     "tool/result",
     "session/title",
     "model/selection",
+    "goal/change",
 ];
 
 /// 一个流式 attempt 的身份。
@@ -279,6 +280,22 @@ impl ConversationFold {
     fn fold(&mut self, event: &Value) {
         let data = &event["data"];
         match event["type"].as_str().unwrap_or_default() {
+            // 目标是会话内的一等状态：前端只负责把「还在推进 / 完成了 / 卡住了」显示出来，
+            // 推进本身由内核的 goal-round-driver 做（docs/GOAL_MODE.md）。
+            "goal/change" => {
+                let goal = &data["goal"];
+                let phase = goal["phase"].as_str().map(GoalPhase::from_wire).unwrap_or_default();
+                self.view.goal = Some(GoalState {
+                    objective: goal["objective"].as_str().map(str::to_string),
+                    phase,
+                    rounds: data["roundsStarted"].as_u64().unwrap_or(0),
+                    max_rounds: goal["maxGoalRounds"].as_u64(),
+                    blocked_reason: goal["blockedReason"]["code"]
+                        .as_str()
+                        .map(str::to_string)
+                        .or_else(|| goal["blockedReason"].as_str().map(str::to_string)),
+                });
+            }
             "turn/start" => {
                 self.current_turn = as_u32(&data["turn"]);
                 self.view.running = true;
@@ -651,6 +668,38 @@ mod tests {
         assert_eq!(view.title.as_deref(), Some("简单确认回复测试"));
         assert_eq!(view.model.as_ref().map(|m| m.provider.as_str()), Some("opencode-go"));
         assert!(view.history_complete);
+    }
+
+    /// 目标是会话状态，不是一条消息：折叠层要把它折成 `Conversation::goal`，
+    /// 界面才可能常驻显示（docs/GOAL_MODE.md）。
+    #[test]
+    fn goal_changes_fold_into_the_conversation_view() {
+        let mut fold = ConversationFold::new();
+        fold.apply_event(&json!({
+            "type": "goal/change",
+            "data": {
+                "operation": "create",
+                "goal": { "id": "g1", "phase": "active", "objective": "补齐导航页", "maxGoalRounds": 24 },
+                "roundsStarted": 0
+            }
+        }));
+        let goal = fold.view().goal.clone().expect("目标应进视图");
+        assert_eq!(goal.phase, GoalPhase::Active);
+        assert_eq!(goal.objective.as_deref(), Some("补齐导航页"));
+        assert_eq!(goal.max_rounds, Some(24));
+
+        fold.apply_event(&json!({
+            "type": "goal/change",
+            "data": {
+                "operation": "block",
+                "goal": { "id": "g1", "phase": "blocked", "blockedReason": { "code": "round-limit" } },
+                "roundsStarted": 5
+            }
+        }));
+        let goal = fold.view().goal.clone().unwrap();
+        assert_eq!(goal.phase, GoalPhase::Blocked);
+        assert_eq!(goal.blocked_reason.as_deref(), Some("round-limit"));
+        assert_eq!(goal.rounds, 5);
     }
 
     #[test]
