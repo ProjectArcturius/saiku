@@ -138,6 +138,18 @@ impl SessionClient {
         Ok(())
     }
 
+    /// 内核注册的人类命令（`commands/list`）。
+    ///
+    /// 返回形状是 `CommandDescriptor[]`：`{ name, description, input?: { hint, attachments? } }`。
+    /// `name` 不带斜杠，**原样保留**（前端补斜杠，不改内核的命名）。
+    pub async fn list_commands(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<saiku_core::service::KernelCommandInfo>, RemoteError> {
+        let value = self.rpc.call("commands/list", json!({ "agentId": session_id })).await?;
+        parse_commands(&value)
+    }
+
     /// 打开转发事件流。审批请求走这条流（见 `events.rs`）。
     pub async fn subscribe_events(&self) -> Result<EventSubscription, RemoteError> {
         EventSubscription::open(&self.mux).await
@@ -376,6 +388,29 @@ fn parse_catalog(value: &Value) -> ModelCatalog {
     }
 }
 
+/// `commands/list` 的返回：`CommandDescriptor[]`（也容忍包一层 `items`）。
+///
+/// 没有 `name` 的条目直接丢掉：它是内核的扩展字段，前端没法调用它。
+fn parse_commands(value: &Value) -> Result<Vec<saiku_core::service::KernelCommandInfo>, RemoteError> {
+    let items = value
+        .as_array()
+        .cloned()
+        .or_else(|| value["items"].as_array().cloned())
+        .ok_or_else(|| RemoteError::Protocol(format!("commands/list 的返回不是数组：{value}")))?;
+    Ok(items
+        .into_iter()
+        .filter_map(|item| {
+            let name = item["name"].as_str()?.to_string();
+            Some(saiku_core::service::KernelCommandInfo {
+                name,
+                description: item["description"].as_str().unwrap_or("").to_string(),
+                hint: item["input"]["hint"].as_str().map(str::to_string),
+                attachments: item["input"]["attachments"].as_bool().unwrap_or(false),
+            })
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -536,4 +571,23 @@ mod tests {
         assert_eq!(model.default_effort.as_deref(), Some("high"));
         assert_eq!(catalog.failures[0].message, "401");
     }
+    #[test]
+    fn command_descriptors_keep_the_kernel_names_without_a_slash() {
+        let value = json!([
+            { "name": "compact", "description": "压缩会话历史" },
+            { "name": "goal", "description": "立目标", "input": { "hint": "<目标>" } },
+            { "description": "没有名字的条目应被丢掉" },
+        ]);
+        let items = parse_commands(&value).unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].name, "compact");
+        assert_eq!(items[0].hint, None);
+        assert_eq!(items[1].hint.as_deref(), Some("<目标>"));
+    }
+
+    #[test]
+    fn a_non_array_listing_is_a_protocol_error_not_an_empty_list() {
+        assert!(parse_commands(&json!({ "oops": true })).is_err());
+    }
+
 }

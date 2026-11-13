@@ -65,6 +65,14 @@ pub enum Command {
         session_id: Option<String>,
         line: String,
     },
+    /// 列出内核注册的人类命令（`/compact`、`/goal` …），回 [`Event::KernelCommands`]。
+    ///
+    /// 前端不复制这张表：内核加一条命令，补全里就会出现。只对已打开的会话有意义
+    /// （命令可以按 Agent 遮蔽）。
+    ListKernelCommands {
+        #[serde(default)]
+        session_id: Option<String>,
+    },
     /// 收掉后端（进程内：TUI 退出时）。IPC 上只断开本连接，不关服务。
     Shutdown,
     #[serde(other)]
@@ -104,10 +112,26 @@ pub enum Event {
     ApprovalClosed { request_id: String, reason: String },
     /// 会话内容检索的结果（`session/search`；片段里的 `\u{0}` 会把命中词夹在中间）。
     Search { query: String, items: Vec<SearchHit> },
+    /// 内核注册的人类命令。`name` 不带前导斜杠（与内核一致）。
+    KernelCommands { items: Vec<KernelCommandInfo> },
     /// 给人看的一句话。`level` 决定颜色，不决定行为。
     Notice { level: NoticeLevel, text: String },
     #[serde(other)]
     Unknown,
+}
+
+/// 一条内核命令的可显示信息。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KernelCommandInfo {
+    /// 不带前导 `/`。
+    pub name: String,
+    pub description: String,
+    /// 参数提示（内核的 `input.hint`）；没有就是无参命令。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
+    /// 能不能带附件（需要 `file-upload`，当前内核没有，几乎总是 false）。
+    #[serde(default)]
+    pub attachments: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

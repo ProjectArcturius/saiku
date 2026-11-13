@@ -261,6 +261,22 @@ async fn run(input: ServiceInput, mut commands: mpsc::UnboundedReceiver<Command>
                     send(Event::Notice { level: NoticeLevel::Error, text });
                 }
             }
+            Command::ListKernelCommands { session_id } => {
+                let Some(id) = session_id.or_else(|| pumps.keys().next().cloned()) else {
+                    send(Event::Notice {
+                        level: NoticeLevel::Warning,
+                        text: "内核命令要一个已打开的会话；先发一条消息".into(),
+                    });
+                    continue;
+                };
+                match client.list_commands(&id).await {
+                    Ok(items) => send(Event::KernelCommands { items }),
+                    Err(error) => send(Event::Notice {
+                        level: NoticeLevel::Warning,
+                        text: format!("读内核命令表失败：{error}"),
+                    }),
+                }
+            }
             Command::KernelCommand { session_id, line } => {
                 let Some(id) = session_id.or_else(|| pumps.keys().next().cloned()) else {
                     send(Event::Notice {

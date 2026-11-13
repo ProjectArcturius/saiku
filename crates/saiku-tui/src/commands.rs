@@ -39,6 +39,8 @@ pub(crate) enum Action {
     Ga,
     /// 集团军的容量：每个账户此刻几个工人在跑、是否冷却。
     Pools,
+    /// 内核注册的人类命令（`/compact` 等）：列出并插入输入框。
+    Kernel,
     /// 暂存当前草稿；输入框为空时列出暂存的草稿取回。
     Stash,
     /// 还有哪几条审批在等回答。
@@ -293,6 +295,18 @@ pub(crate) const ENTRIES: &[Entry] = &[
         title: "子 agent 会话（打开 / 回到父会话）",
         category: Category::Session,
         slash: Some("/subagents"),
+        arg: None,
+        keys: &[],
+        context: Context::Composer,
+        unavailable: None,
+        palette: true,
+    },
+    Entry {
+        action: Action::Kernel,
+        id: "kernel.commands",
+        title: "内核命令（/compact 等；列出后插入输入框）",
+        category: Category::Session,
+        slash: Some("/kernel"),
         arg: None,
         keys: &[],
         context: Context::Composer,

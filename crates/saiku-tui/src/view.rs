@@ -1143,6 +1143,7 @@ fn popup(frame: &mut Frame, app: &App, dialog: &Dialog, area: Rect, t: &Theme) {
         // 主题选择器在函数开头就交给 theme_dialog 画了。
         Dialog::Sessions | Dialog::Runs | Dialog::Agents | Dialog::Permissions | Dialog::Theme
         | Dialog::Subagents
+        | Dialog::Kernel
         | Dialog::Stash
         | Dialog::Approval(_)
         | Dialog::Confirm(_)
@@ -1157,6 +1158,7 @@ fn popup(frame: &mut Frame, app: &App, dialog: &Dialog, area: Rect, t: &Theme) {
         Dialog::Agents => "Agent",
         Dialog::Permissions => "授权级别",
         Dialog::Subagents => "子 agent 会话",
+        Dialog::Kernel => "内核命令",
         Dialog::Stash => "暂存的草稿",
         Dialog::Theme => return,
         // 上面已经把其余分支返回掉了；这里给编译器一个穷尽的分支。
@@ -1214,6 +1216,14 @@ fn popup(frame: &mut Frame, app: &App, dialog: &Dialog, area: Rect, t: &Theme) {
                 (format!("{}{running}{idle}", row.label), true)
             })
             .collect(),
+        Dialog::Kernel => app
+            .kernel_commands
+            .iter()
+            .map(|item| {
+                let hint = item.hint.as_deref().map(|h| format!(" {h}")).unwrap_or_default();
+                (format!("/{}{hint} · {}", item.name, item.description), true)
+            })
+            .collect(),
         Dialog::Stash => app
             .preferences
             .stash
@@ -1248,6 +1258,7 @@ fn popup(frame: &mut Frame, app: &App, dialog: &Dialog, area: Rect, t: &Theme) {
     if rows.is_empty() {
         let empty = match dialog {
             Dialog::Subagents => "这个会话还没有派出子 agent",
+            Dialog::Kernel => "内核没有注册人类命令",
             _ => "没有匹配项",
         };
         rows.push((empty.into(), false));

@@ -46,6 +46,8 @@ pub(crate) enum Dialog {
     Subagents,
     /// 暂存的草稿，Enter 取回到输入框。
     Stash,
+    /// 内核注册的人类命令（`commands/list`）。
+    Kernel,
     /// 工具的完整输出 / 本会话的 diff（可滚动、可搜索）。
     Viewer(Viewer),
     Models(ModelDialogState),
@@ -135,6 +137,10 @@ pub(crate) struct App {    pub boot: Boot,
     pub effort: Option<String>,
     /// `/dispatch` 的默认池子（`/ga` 改它，落进偏好文件）。
     pub ga: Option<String>,
+    /// 内核注册的人类命令（`/kernel` 读到之后缓存；会话切换时清空）。
+    pub kernel_commands: Vec<saiku_core::service::KernelCommandInfo>,
+    /// 读到命令表之后要不要直接打开列表（`/kernel` 的意图）。
+    kernel_wanted: bool,
     /// 下一次请求要用的模型。启动时来自配置，模型对话框改动它。
     pub model: Option<ModelRef>,
     pub model_prefs: ModelPrefs,
@@ -254,6 +260,8 @@ impl App {
             boot,
             preferences,
             ga,
+            kernel_commands: Vec::new(),
+            kernel_wanted: false,
             theme,
             editor,
             runs: Vec::new(),
@@ -465,6 +473,17 @@ impl App {
                     self.conversation = Some(*conversation);
                 }
             }
+            E::KernelCommands { items } => {
+                self.kernel_commands = items;
+                if self.kernel_wanted {
+                    self.kernel_wanted = false;
+                    if self.kernel_commands.is_empty() {
+                        self.notice = "内核没有注册任何人类命令".into();
+                    } else {
+                        self.open_dialog(Dialog::Kernel);
+                    }
+                }
+            }
             E::SessionClosed { session_id, reason } => {
                 if self.session_id.as_deref() == Some(session_id.as_str()) {
                     self.notice = format!("会话订阅已结束：{}", first_line(&reason));
@@ -631,6 +650,7 @@ impl App {
             Some(Dialog::Timeline) => self.user_messages().len(),
             Some(Dialog::Subagents) => self.subagent_rows().len(),
             Some(Dialog::Stash) => self.preferences.stash.len(),
+            Some(Dialog::Kernel) => self.kernel_commands.len(),
             Some(Dialog::Confirm(_) | Dialog::Approval(_) | Dialog::Viewer(_)) => 1,
             // Help scrolls instead of selecting; non-zero keeps the generic clamp harmless.
             Some(Dialog::Help) => 1,
@@ -953,6 +973,18 @@ impl App {
                     self.open_dialog(Dialog::Subagents);
                 }
             }
+            Action::Kernel => match &self.session_id {
+                Some(id) => {
+                    self.kernel_wanted = true;
+                    let _ = requests.send(Request::Session(
+                        saiku_core::service::Command::ListKernelCommands {
+                            session_id: Some(id.clone()),
+                        },
+                    ));
+                    self.notice = "正在读内核命令表…".into();
+                }
+                None => self.notice = "内核命令要一个已打开的会话；先发一条消息".into(),
+            },
             Action::Pools => {
                 if self.boot.armies.is_empty() {
                     self.notice = "配置里没有 group_army；派工走单账户路由".into();
@@ -1914,6 +1946,16 @@ impl App {
                 self.editor.insert(&draft);
             }
             Some(Dialog::Stash) => {}
+            Some(Dialog::Kernel) => {
+                if let Some(item) = self.kernel_commands.get(self.choice).cloned() {
+                    self.dialog = None;
+                    self.editor.set_text(format!("/{} ", item.name));
+                    self.notice = match &item.hint {
+                        Some(hint) => format!("已插入 /{}，参数：{hint}", item.name),
+                        None => format!("已插入 /{}（无参数）", item.name),
+                    };
+                }
+            }
             Some(Dialog::Subagents) => {
                 if let Some(row) = self.subagent_rows().get(self.choice).cloned() {
                     self.dialog = None;
@@ -4139,6 +4181,34 @@ mod tests {
         assert!(app.preferences.stash.is_empty());
         let saved = serde_json::to_string(&app.preferences).unwrap();
         assert!(saved.contains("\"stash\""), "暂存跟偏好一起落盘：{saved}");
+    }
+
+    /// `/kernel` 先向内核要命令表，拿到后打开列表；选中一条只**插入**输入框，不直接执行。
+    #[test]
+    fn kernel_commands_are_listed_and_inserted_not_executed() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut app = app();
+        ready(&mut app);
+        app.session_id = Some("s1".into());
+        let _ = app.execute(Action::Kernel, None, &tx);
+        match rx.recv().unwrap() {
+            Request::Session(saiku_core::service::Command::ListKernelCommands { session_id }) => {
+                assert_eq!(session_id.as_deref(), Some("s1"));
+            }
+            other => panic!("应请求命令表：{other:?}"),
+        }
+        app.update(Update::Session(saiku_core::service::Event::KernelCommands {
+            items: vec![saiku_core::service::KernelCommandInfo {
+                name: "compact".into(),
+                description: "压缩会话历史".into(),
+                hint: None,
+                attachments: false,
+            }],
+        }));
+        assert_eq!(app.dialog, Some(Dialog::Kernel), "拿到表之后应打开列表");
+        app.select(&tx);
+        assert_eq!(app.editor.text, "/compact ", "选中只插入，不直接跑");
+        assert!(app.notice.contains("/compact"), "{}", app.notice);
     }
 
     /// 内核命令（`/compact` 这类）不在 Saiku 的命令表里：原样转发，不假装认识。
