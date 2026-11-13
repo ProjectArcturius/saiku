@@ -37,6 +37,8 @@ pub(crate) enum Action {
     Dispatch,
     /// 派工默认用哪个集团军。
     Ga,
+    /// 集团军的容量：每个账户此刻几个工人在跑、是否冷却。
+    Pools,
     /// 暂存当前草稿；输入框为空时列出暂存的草稿取回。
     Stash,
     /// 还有哪几条审批在等回答。
@@ -291,6 +293,18 @@ pub(crate) const ENTRIES: &[Entry] = &[
         title: "子 agent 会话（打开 / 回到父会话）",
         category: Category::Session,
         slash: Some("/subagents"),
+        arg: None,
+        keys: &[],
+        context: Context::Composer,
+        unavailable: None,
+        palette: true,
+    },
+    Entry {
+        action: Action::Pools,
+        id: "runs.pools",
+        title: "池子容量（每个账户在跑几个、是否冷却）",
+        category: Category::Session,
+        slash: Some("/pools"),
         arg: None,
         keys: &[],
         context: Context::Composer,

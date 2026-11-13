@@ -91,7 +91,8 @@ saiku night stop <控制器目录>          # 取消在跑的，不再接新的
 输出里写的是「控制器已停 Ns」——**这一行就是「今晚是不是白跑了」的答案**。
 
 TUI 里等价的是 `/night`：读同一个 `state.json` / `heartbeat.json`（判据在
-`saiku-core::night`，只有一份），给出同样的那一行，外加失败任务的原因码与在跑列表。
+`saiku-core::night`，只有一份），给出同样的那一行，外加失败任务的原因码、在跑列表，
+以及整批 token（provider 实报，按每件运行的状态文件累加）。
 
 ## 它不管什么
 

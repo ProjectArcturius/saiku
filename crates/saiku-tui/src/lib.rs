@@ -55,9 +55,9 @@ pub struct Boot {
     /// 配置里的 `personalization.enabled`。开着时 persona 随 Agent 装配进内核（§5.3.1），
     /// 所以换 Agent 也要重启内核；关着时 Echo 与 Build 在交互面上没有区别。
     pub personalization: bool,
-    /// `saiku.json` 里 `group_army` 的池子 id（已排序）。`/ga` 用它校验与提示。
-    /// 交互会话不经过池子；这份列表只为派工服务。
-    pub armies: Vec<String>,
+    /// `saiku.json` 里的集团军摘要（不含密钥）。`/ga` 用它校验与提示，`/pools` 用它
+    /// 显示容量。交互会话不经过池子；这份列表只为派工服务。
+    pub armies: Vec<saiku_core::group_army::ArmySummary>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -156,7 +156,7 @@ pub async fn run() -> i32 {
         armies: loaded
             .config
             .as_ref()
-            .map(|cfg| cfg.group_army.keys().cloned().collect())
+            .map(|cfg| saiku_core::group_army::summaries(&cfg.group_army))
             .unwrap_or_default(),
     };
     let (request_tx, request_rx) = mpsc::channel();

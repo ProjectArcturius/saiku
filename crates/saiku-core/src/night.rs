@@ -53,9 +53,15 @@ pub struct Report {
     pub running: Vec<String>,
     /// 还在排队、且依赖未满足/名额未到的任务数。
     pub pending: Vec<String>,
+    /// 全部任务 id → 状态（用量汇总与将来别的视图都要按 id 找运行目录）。
+    pub tasks: BTreeMap<String, String>,
 }
 
 impl Report {
+    pub fn counts_of_tasks(&self) -> &BTreeMap<String, String> {
+        &self.tasks
+    }
+
     /// 一行结论。TUI 的页脚与 `saiku night status` 说的是同一句话。
     pub fn one_line(&self) -> String {
         let alive = match self.heartbeat_age_ms {
@@ -90,6 +96,42 @@ struct RawBeat {
     at: u64,
 }
 
+/// 整批夜班的用量合计（provider 实报的 token，不做估算）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct UsageTotal {
+    pub prompt: u64,
+    pub cache_read: u64,
+    pub completion: u64,
+    /// 报告过用量的运行数。
+    pub runs: usize,
+}
+
+impl UsageTotal {
+    pub fn is_zero(&self) -> bool {
+        self.runs == 0
+    }
+}
+
+/// 从每件任务的状态目录里取 `usage` 累加。
+///
+/// 用 `Value` 而不是 cli 的 `StatusFile`：这一层只关心三个字段，不想把「状态文件长什么样」
+/// 也变成 core 的契约（那属于 worker，不属于前端）。
+pub fn usage(state_root: &Path, report: &Report) -> UsageTotal {
+    let mut total = UsageTotal::default();
+    for task in report.counts_of_tasks().keys() {
+        let path = state_root.join("runs").join(task).join("status.json");
+        let Ok(raw) = std::fs::read_to_string(&path) else { continue };
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else { continue };
+        let Some(usage) = value.get("usage") else { continue };
+        let field = |name: &str| usage.get(name).and_then(|v| v.as_u64()).unwrap_or(0);
+        total.prompt += field("prompt_tokens");
+        total.cache_read += field("cache_read_tokens");
+        total.completion += field("completion_tokens");
+        total.runs += 1;
+    }
+    total
+}
+
 /// 读一个控制器目录。`state.json` 不在就返回 `None`（目录可能是半天前留下的空壳）。
 pub fn read_dir(dir: &Path, now: u64) -> Option<Report> {
     let raw = std::fs::read_to_string(dir.join("state.json")).ok()?;
@@ -104,7 +146,9 @@ pub fn read_dir(dir: &Path, now: u64) -> Option<Report> {
     let mut failures = Vec::new();
     let mut running = Vec::new();
     let mut pending = Vec::new();
+    let mut tasks = BTreeMap::new();
     for (id, task) in &state.tasks {
+        tasks.insert(id.clone(), task.state.clone());
         match task.state.as_str() {
             "done" => counts.done += 1,
             "running" => {
@@ -141,6 +185,7 @@ pub fn read_dir(dir: &Path, now: u64) -> Option<Report> {
         failures,
         running,
         pending,
+        tasks,
     })
 }
 

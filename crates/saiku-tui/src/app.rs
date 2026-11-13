@@ -953,6 +953,49 @@ impl App {
                     self.open_dialog(Dialog::Subagents);
                 }
             }
+            Action::Pools => {
+                if self.boot.armies.is_empty() {
+                    self.notice = "配置里没有 group_army；派工走单账户路由".into();
+                } else {
+                    let now = crate::view::now_ms();
+                    let mut lines = Vec::new();
+                    for army in &self.boot.armies {
+                        lines.push(format!("{}  {}/{}", army.id, army.provider, army.model));
+                        for account in &army.accounts {
+                            let state = saiku_core::group_army::account_state(
+                                &self.boot.state_root,
+                                &army.id,
+                                &account.id,
+                                account.concurrency,
+                                now,
+                            );
+                            let cooldown = match state.cooldown_until {
+                                Some(until) => format!(
+                                    "  冷却 {}s：{}",
+                                    until.saturating_sub(now) / 1000,
+                                    state.cooldown_reason.clone().unwrap_or_default()
+                                ),
+                                None => String::new(),
+                            };
+                            lines.push(format!(
+                                "  {:<12} {:>2}/{:<2} 空闲 {}{}",
+                                state.id,
+                                state.busy,
+                                state.limit,
+                                state.free(),
+                                cooldown
+                            ));
+                        }
+                        lines.push(String::new());
+                    }
+                    self.open_dialog(Dialog::Viewer(Viewer {
+                        title: "集团军".into(),
+                        lines,
+                        scroll: 0,
+                        filter: String::new(),
+                    }));
+                }
+            }
             Action::Ga => match arg.map(str::trim) {
                 Some("off") | Some("none") | Some("clear") => {
                     self.ga = None;
@@ -960,10 +1003,10 @@ impl App {
                     self.notice = "派工不再指定池子（走单账户路由）".into();
                 }
                 Some(id) if !id.is_empty() => {
-                    if !self.boot.armies.is_empty() && !self.boot.armies.iter().any(|a| a == id) {
+                    if !self.boot.armies.is_empty() && !self.boot.armies.iter().any(|a| a.id == id) {
                         self.notice = format!(
                             "没有池子 `{id}`；可选：{}",
-                            self.boot.armies.join(" / ")
+                            self.boot.armies.iter().map(|a| a.id.as_str()).collect::<Vec<_>>().join(" / ")
                         );
                     } else {
                         self.ga = Some(id.to_string());
@@ -978,9 +1021,9 @@ impl App {
                         match &self.ga {
                             Some(ga) => format!(
                                 "当前默认池子：{ga}；可选：{}（/ga off 清除）",
-                                self.boot.armies.join(" / ")
+                                self.boot.armies.iter().map(|a| a.id.as_str()).collect::<Vec<_>>().join(" / ")
                             ),
-                            None => format!("未指定池子；可选：{}", self.boot.armies.join(" / ")),
+                            None => format!("未指定池子；可选：{}", self.boot.armies.iter().map(|a| a.id.as_str()).collect::<Vec<_>>().join(" / ")),
                         }
                     };
                 }
@@ -1021,6 +1064,15 @@ impl App {
                     }
                     if !report.pending.is_empty() {
                         lines.push(format!("排队（{}）：{}", report.pending.len(), report.pending.join(" · ")));
+                    }
+                    // 整批的用量：provider 实报的数，不做估算。夜班值不值，看这一行。
+                    let usage = saiku_core::night::usage(&self.boot.state_root, &report);
+                    if !usage.is_zero() {
+                        lines.push(String::new());
+                        lines.push(format!(
+                            "用量（provider 实报，{} 次运行）：输入 {} · 缓存 {} · 输出 {} token",
+                            usage.runs, usage.prompt, usage.cache_read, usage.completion
+                        ));
                     }
                     self.open_dialog(Dialog::Viewer(Viewer {
                         title: "夜班".into(),
@@ -4052,11 +4104,56 @@ mod tests {
         assert!(saved.contains("\"stash\""), "暂存跟偏好一起落盘：{saved}");
     }
 
+    /// `/pools`：容量账本在状态目录里，TUI 只读它 —— 派不出去时第一眼要看的就是这里。
+    #[test]
+    fn pools_reads_the_capacity_ledger() {
+        use saiku_core::group_army::{ArmyAccount, ArmySummary};
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let ga = root.join("capacity").join("inf-ds");
+        std::fs::create_dir_all(ga.join("inf-1").join("123-1-1-0")).unwrap();
+        std::fs::write(ga.join("inf-1").join("123-1-1-0").join("beat"), "1").unwrap();
+        std::fs::create_dir_all(ga.join("inf-2")).unwrap();
+        std::fs::write(
+            ga.join("inf-2").join("cooldown.json"),
+            format!(r#"{{"until":{},"reason":"MODEL_RATE_LIMITED"}}"#, crate::view::now_ms() + 60_000),
+        )
+        .unwrap();
+
+        let boot = Boot {
+            state_root: root,
+            armies: vec![ArmySummary {
+                id: "inf-ds".into(),
+                provider: "inferknock".into(),
+                model: "deepseek-v4.1-flash".into(),
+                accounts: vec![
+                    ArmyAccount { id: "inf-1".into(), concurrency: 3 },
+                    ArmyAccount { id: "inf-2".into(), concurrency: 3 },
+                ],
+            }],
+            ..boot(None, PathBuf::from("unused.json"))
+        };
+        let mut app = App::new(boot, Preferences::default(), ModelPrefs::default());
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let _ = app.execute(Action::Pools, None, &tx);
+        let Some(Dialog::Viewer(viewer)) = &app.dialog else { panic!("应打开容量视图") };
+        let text = viewer.lines.join("\n");
+        assert!(text.contains("inf-ds"), "{text}");
+        assert!(text.contains("1/3"), "inf-1 应显示在跑 1 个：{text}");
+        assert!(text.contains("冷却"), "inf-2 应显示冷却：{text}");
+    }
+
     /// `/ga` 记住默认池子，`/dispatch` 不带 `--ga` 时用它；`/ga off` 清掉。
     #[test]
     fn ga_sets_the_default_pool_and_dispatch_uses_it() {
         let (tx, rx) = std::sync::mpsc::channel();
-        let boot = Boot { armies: vec!["inf-ds".into(), "other".into()], ..boot(None, PathBuf::from("unused.json")) };
+        let army = |id: &str| saiku_core::group_army::ArmySummary {
+            id: id.into(),
+            provider: "p".into(),
+            model: "m".into(),
+            accounts: Vec::new(),
+        };
+        let boot = Boot { armies: vec![army("inf-ds"), army("other")], ..boot(None, PathBuf::from("unused.json")) };
         let mut app = App::new(boot, Preferences::default(), ModelPrefs::default());
         ready(&mut app);
         let _ = app.execute(Action::Ga, Some("inf-ds"), &tx);
@@ -4077,7 +4174,15 @@ mod tests {
     #[test]
     fn ga_rejects_a_pool_that_is_not_configured() {
         let (tx, _rx) = std::sync::mpsc::channel();
-        let boot = Boot { armies: vec!["inf-ds".into()], ..boot(None, PathBuf::from("unused.json")) };
+        let boot = Boot {
+            armies: vec![saiku_core::group_army::ArmySummary {
+                id: "inf-ds".into(),
+                provider: "p".into(),
+                model: "m".into(),
+                accounts: Vec::new(),
+            }],
+            ..boot(None, PathBuf::from("unused.json"))
+        };
         let mut app = App::new(boot, Preferences::default(), ModelPrefs::default());
         ready(&mut app);
         let _ = app.execute(Action::Ga, Some("nope"), &tx);
@@ -4136,6 +4241,13 @@ mod tests {
                 "w3":{"state":"running","attempts":1}}}"#,
         )
         .unwrap();
+        let run = dir.path().join("runs").join("w1");
+        std::fs::create_dir_all(&run).unwrap();
+        std::fs::write(
+            run.join("status.json"),
+            r#"{"usage":{"prompt_tokens":100,"cache_read_tokens":50,"completion_tokens":7}}"#,
+        )
+        .unwrap();
         std::fs::write(
             night.join("heartbeat.json"),
             format!(r#"{{"at":{}}}"#, crate::view::now_ms()),
@@ -4155,6 +4267,7 @@ mod tests {
         assert!(viewer.lines[0].contains("1 done"), "{:?}", viewer.lines);
         assert!(viewer.lines.iter().any(|l| l.contains("MODEL_ROUTE")), "{:?}", viewer.lines);
         assert!(viewer.lines.iter().any(|l| l.contains("在跑：w3")), "{:?}", viewer.lines);
+        assert!(viewer.lines.iter().any(|l| l.contains("输入 100")), "用量要汇总：{:?}", viewer.lines);
     }
 
     /// 目标阶段的一次性结论：建立、完成、受阻各说一次；每轮都报会把页脚变成噪声。

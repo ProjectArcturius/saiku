@@ -318,6 +318,60 @@ impl AccountState {
     }
 }
 
+/// 池子的**摘要**：给前端显示用，不含密钥、不含 provider 细节。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArmySummary {
+    pub id: String,
+    pub provider: String,
+    pub model: String,
+    pub accounts: Vec<ArmyAccount>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArmyAccount {
+    pub id: String,
+    pub concurrency: u32,
+}
+
+/// 把配置折成前端要的形状（按 id 排序）。
+pub fn summaries(config: &BTreeMap<String, GroupArmyConfig>) -> Vec<ArmySummary> {
+    config
+        .iter()
+        .map(|(id, ga)| ArmySummary {
+            id: id.clone(),
+            provider: ga.provider.clone(),
+            model: ga.model.clone(),
+            accounts: ga
+                .accounts
+                .iter()
+                .map(|account| ArmyAccount {
+                    id: account.id().to_string(),
+                    concurrency: ga.limits_of(account.id()).concurrency.max(1),
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+/// 单个账户此刻的占用与冷却（不依赖配置里的限额：调用方给）。
+pub fn account_state(
+    state_root: &Path,
+    ga_id: &str,
+    account: &str,
+    limit: u32,
+    now: u64,
+) -> AccountState {
+    let dir = capacity_root(state_root).join(ga_id).join(account);
+    let cooldown = read_cooldown(&dir, now);
+    AccountState {
+        id: account.to_string(),
+        busy: count_leases(&dir) as u32,
+        limit: limit.max(1),
+        cooldown_until: cooldown.as_ref().map(|(until, _)| *until),
+        cooldown_reason: cooldown.map(|(_, reason)| reason),
+    }
+}
+
 /// 状态目录下的容量账本根。
 pub fn capacity_root(state_root: &Path) -> PathBuf {
     state_root.join("capacity")
@@ -435,21 +489,11 @@ pub fn cooldown(ga_id: &str, account: &str, state_root: &Path, seconds: u64, rea
 
 /// 读一个 GA 的账户状态（`saiku ga ls` 用，也用于取号前的排序）。
 pub fn inspect(ga_id: &str, ga: &GroupArmyConfig, state_root: &Path, now: u64) -> Vec<AccountState> {
-    let root = capacity_root(state_root).join(ga_id);
     ga.accounts
         .iter()
         .map(|spec| {
-            let id = spec.id().to_string();
-            let dir = root.join(&id);
-            let cooldown = read_cooldown(&dir, now);
-            let busy = count_leases(&dir) as u32;
-            AccountState {
-                limit: ga.limits_of(&id).concurrency.max(1),
-                busy,
-                cooldown_until: cooldown.as_ref().map(|(until, _)| *until),
-                cooldown_reason: cooldown.map(|(_, reason)| reason),
-                id,
-            }
+            let id = spec.id();
+            account_state(state_root, ga_id, id, ga.limits_of(id).concurrency, now)
         })
         .collect()
 }
