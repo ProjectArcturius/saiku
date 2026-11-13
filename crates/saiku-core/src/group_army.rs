@@ -187,6 +187,27 @@ impl Needs {
         Ok(needs)
     }
 
+    pub fn is_empty(&self) -> bool {
+        !self.vision && self.context.is_none() && self.max_output.is_none() && self.effort.is_none()
+    }
+
+    pub fn describe(&self) -> String {
+        let mut parts = Vec::new();
+        if self.vision {
+            parts.push("vision".to_string());
+        }
+        if let Some(context) = self.context {
+            parts.push(format!("context={context}"));
+        }
+        if let Some(output) = self.max_output {
+            parts.push(format!("output={output}"));
+        }
+        if let Some(effort) = &self.effort {
+            parts.push(format!("effort={effort}"));
+        }
+        parts.join(" ")
+    }
+
     fn check(&self, capabilities: &Capabilities) -> Option<String> {
         if self.vision && !capabilities.vision {
             return Some("要求读图，但这个 GA 的模型不支持多模态".into());
@@ -375,6 +396,26 @@ pub fn acquire(
     }
 
     Err(SpecError::new(code::GA_CAPACITY, describe_full(ga_id, &states, now)))
+}
+
+/// 按能力挑一个 GA：`--need` 不满足的排除，满足了就优先 `default`，其次配置顺序。
+///
+/// 只在「没写 `--ga`、也没配 `dispatch.ga`、但写了 needs」时用 —— 这时用户的意图
+/// 明确是「谁合适用谁」，而不是「用我指定的那一个」。
+pub fn pick_for(needs: &Needs, armies: &BTreeMap<String, GroupArmyConfig>) -> Option<String> {
+    let mut fallback: Option<String> = None;
+    for (id, ga) in armies {
+        if needs.check(&ga.capabilities).is_some() {
+            continue;
+        }
+        if ga.default {
+            return Some(id.clone());
+        }
+        if fallback.is_none() {
+            fallback = Some(id.clone());
+        }
+    }
+    fallback
 }
 
 /// 给账户记一次冷却（供应商 429 / 5xx 之后用）。冷却期内不取号。
@@ -595,6 +636,25 @@ mod tests {
             accounts: accounts.iter().map(|id| AccountSpec::Id((*id).into())).collect(),
             default: false,
         }
+    }
+
+#[test]
+    fn pick_for_prefers_default_and_skips_incapable() {
+        let mut armies = BTreeMap::new();
+        let mut text_only = ga(&["a"], 1);
+        text_only.capabilities.vision = false;
+        armies.insert("text".to_string(), text_only);
+        let mut vision = ga(&["b"], 1);
+        vision.default = true;
+        armies.insert("vision".to_string(), vision);
+        let need = Needs { vision: true, ..Default::default() };
+        assert_eq!(pick_for(&need, &armies).as_deref(), Some("vision"));
+        assert_eq!(pick_for(&Needs::default(), &armies).as_deref(), Some("vision"), "缺省仍偏爱 default");
+        let mut none = BTreeMap::new();
+        let mut only_text = ga(&["a"], 1);
+        only_text.capabilities.vision = false;
+        none.insert("t".to_string(), only_text);
+        assert_eq!(pick_for(&need, &none), None);
     }
 
     #[test]

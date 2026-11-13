@@ -206,10 +206,34 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
     // ── 集团军 ────────────────────────────────────────────────────────────
     // `--ga` 优先于配置里的 `dispatch.ga`；都没有就是单账户老路径（用 cfg.model）。
     // 能力要求合并两处：配置里的默认 needs 与本条命令的 --need。
-    let ga_id = flags.one("--ga").map(str::to_string).or_else(|| cfg.dispatch.ga.clone());
+    let mut ga_id = flags.one("--ga").map(str::to_string).or_else(|| cfg.dispatch.ga.clone());
     let needs = Needs::parse(
         &cfg.dispatch.needs.iter().cloned().chain(flags.all("--need")).collect::<Vec<_>>(),
     )?;
+    // 没点名用哪个池、但说了要什么能力：让 Saiku 自己挑（能力满足的里优先 default）。
+    if ga_id.is_none() && !needs.is_empty() {
+        match group_army::pick_for(&needs, &cfg.group_army) {
+            Some(id) => ga_id = Some(id),
+            None => {
+                return Err(SpecError::new(
+                    code::CAPABILITY_MISS,
+                    format!(
+                        "没有集团军满足「{}」；配置里的池：{}",
+                        needs.describe(),
+                        if cfg.group_army.is_empty() {
+                            "（空）".to_string()
+                        } else {
+                            cfg.group_army
+                                .iter()
+                                .map(|(id, ga)| format!("{id}（{}/{}）", ga.provider, ga.model))
+                                .collect::<Vec<_>>()
+                                .join(" / ")
+                        }
+                    ),
+                ));
+            }
+        }
+    }
     if let Some(id) = &ga_id
         && !cfg.group_army.contains_key(id)
     {
