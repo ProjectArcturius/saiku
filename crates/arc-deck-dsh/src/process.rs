@@ -336,6 +336,36 @@ impl RuntimeProcess {
     }
 }
 
+/// 起一个**替身「运行时」**：自成一组（pgid = pid）、已交给 init、`args` 出现在命令行里。
+///
+/// 两条都是生产形状，缺一条这条替身验的就不是真实情形（2026-10-21 在 Arch 上第一次跑
+/// Linux 全套，两条都踩过）：
+///
+/// - **自成一组** —— 真实运行时由 [`configure_command`] 用 `process_group(0)` 拉起。
+///   替身若继承调用方的组，`kill -KILL -- -pid` 打在一个不存在的组上，而收尾的确认
+///   窗口又把「组不存在」读成「已经退干净」，于是 reap 自称收掉了、进程还活着。
+/// - **交给 init** —— 若替身仍是调用方的子进程，杀掉后它会变成调用方的僵尸，
+///   `/proc` 里照样在、也照样算组员，确认窗口每次白等满 2 秒。
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn spawn_detached_sleeper(args: &[String]) -> u32 {
+    // `$0` 之后才是替身自己的参数：它们只为出现在命令行里，不改变行为。
+    //
+    // 内层脚本写成 `sleep 120; true` 而不是单一句 `sleep 120`：只有一条命令时 `sh`
+    // 会 **exec 优化**，进程直接变成 `sleep 120`，`$@` 从命令行里消失 —— 替身的命令行
+    // 于是对不上，reap 按规矩不收它，断言在「命令行匹配」那一关卡住（实测过）。
+    let out = std::process::Command::new("sh")
+        .arg("-c")
+        .args(["setsid sh -c 'sleep 120; true' sleeper \"$@\" >/dev/null 2>&1 & echo $!", "sleeper"])
+        .args(args)
+        .output()
+        .expect("起一个分离的替身");
+    let pid: u32 = String::from_utf8_lossy(&out.stdout).trim().parse().expect("拿到 pid");
+    // 留一点时间让外面的 `sh` 退干净、替身交出去。
+    std::thread::sleep(Duration::from_millis(200));
+    assert!(std::path::Path::new(&format!("/proc/{pid}")).exists(), "替身该活着");
+    pid
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,30 +377,11 @@ mod tests {
         assert!(!pid_alive(4_294_967_294));
     }
 
-    /// 起一个自成一组的 `sleep`，并**立刻把它交给 init**。
-    ///
-    /// 为什么要绕这一道：如果测试进程自己持有这个子进程，杀掉它之后它会变成**我们**
-    /// 的僵尸，`/proc` 里照样在，于是收树的确认窗口每次都要白等满 2 秒 —— 那验的就不
-    /// 是真实情形了。真实的孤儿运行时正是「没有一个会 wait 它的父进程」。
-    #[cfg(target_os = "linux")]
-    fn spawn_detached_sleeper() -> u32 {
-        let out = std::process::Command::new("sh")
-            .arg("-c")
-            .arg("setsid sleep 60 >/dev/null 2>&1 & echo $!")
-            .output()
-            .expect("起一个分离的 sleep");
-        let pid: u32 = String::from_utf8_lossy(&out.stdout).trim().parse().expect("拿到 pid");
-        // 留一点时间让 `sh` 退干净、sleep 交出去。
-        std::thread::sleep(Duration::from_millis(200));
-        assert!(std::path::Path::new(&format!("/proc/{pid}")).exists(), "sleep 该活着");
-        pid
-    }
-
     /// 按 pid 收一棵**不是自己拉起的**进程树。
     #[cfg(target_os = "linux")]
     #[test]
     fn kill_tree_by_pid_reaps_a_process_group_we_do_not_own() {
-        let pid = spawn_detached_sleeper();
+        let pid = spawn_detached_sleeper(&[]);
         let termination = kill_tree_by_pid(pid);
         assert!(termination.exited, "没收干净：{}", termination.detail);
         assert!(!std::path::Path::new(&format!("/proc/{pid}")).exists());
@@ -380,7 +391,7 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn reaping_an_already_gone_pid_is_immediate_and_not_an_error() {
-        let pid = spawn_detached_sleeper();
+        let pid = spawn_detached_sleeper(&[]);
         assert!(kill_tree_by_pid(pid).exited);
 
         let started = std::time::Instant::now();

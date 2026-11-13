@@ -364,28 +364,60 @@ mod tests {
         HomeLock::acquire(home.path()).expect("遗留锁应被接管");
     }
 
-    /// 一个命令行里带着 `extra` 的长睡进程（替身「内核」）。不弹窗。
-    fn sleeper(extra: &[String]) -> std::process::Child {
+    /// 一个命令行里带着 `extra` 的长睡进程（替身「内核」）。
+    ///
+    /// **替身必须与生产同形** —— 两条缺一条，验的就不是真实情形（2026-10-21 在 Arch 上
+    /// 第一次跑 Linux 全套，两条各踩了一次）：
+    ///
+    /// - 真实运行时由 `process::configure_command` 用 `process_group(0)` 拉起（pgid = pid）。
+    ///   替身若继承测试进程的组，`kill -KILL -- -pid` 打在一个**不存在**的组上，而收尾的
+    ///   确认窗口把「组不存在」读成「已经退干净」—— reap 自称收掉了、进程还活着
+    /// - 真实的孤儿内核**没有一个会 wait 它的父进程**。替身若仍是测试进程的子进程，被杀后
+    ///   变成僵尸，`/proc` 里照样在、也照样算组员，确认窗口每次白等满 2 秒
+    ///
+    /// 所以 Unix 上直接复用 `process::spawn_detached_sleeper`（自成一组 + 立刻交给 init）。
+    struct StandIn {
+        pid: u32,
         #[cfg(windows)]
-        let mut command = {
-            let mut c = std::process::Command::new("powershell");
-            // `#` 之后是注释：参数只为出现在命令行里，powershell 不执行它们。
-            c.args(["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120 #"]);
-            c
-        };
-        #[cfg(unix)]
-        let mut command = {
-            let mut c = std::process::Command::new("sh");
-            c.args(["-c", "sleep 120", "sh"]);
-            c
-        };
-        crate::process::no_window(&mut command)
-            .args(extra)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .unwrap()
+        child: std::process::Child,
+    }
+
+    impl StandIn {
+        fn start(extra: &[String]) -> Self {
+            #[cfg(unix)]
+            {
+                Self { pid: crate::process::spawn_detached_sleeper(extra) }
+            }
+            #[cfg(windows)]
+            {
+                let mut command = std::process::Command::new("powershell");
+                // `#` 之后是注释：参数只为出现在命令行里，powershell 不执行它们。
+                command.args(["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120 #"]);
+                let child = crate::process::no_window(&mut command)
+                    .args(extra)
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+                    .unwrap();
+                Self { pid: child.id(), child }
+            }
+        }
+
+        fn alive(&mut self) -> bool {
+            #[cfg(unix)]
+            {
+                crate::process::pid_alive(self.pid)
+            }
+            #[cfg(windows)]
+            {
+                self.child.try_wait().unwrap().is_none()
+            }
+        }
+
+        fn stop(&mut self) {
+            let _ = crate::process::kill_tree_by_pid(self.pid);
+        }
     }
 
     /// 主人被硬杀后留下的内核：下一次拿锁时按记录收掉 —— 但只收**命令行对得上**的那个
@@ -394,21 +426,22 @@ mod tests {
     fn a_kernel_left_behind_is_reaped_only_when_its_command_line_matches() {
         let home = tempfile::tempdir().unwrap();
         let patch = home.path().join("saiku-web-patch.json").display().to_string();
-        let mut stranger = sleeper(&["--profile".into(), "web".into(), "--patch".into(), "elsewhere.json".into()]);
-        std::fs::write(home.path().join(KERNEL_FILE), stranger.id().to_string()).unwrap();
+        let mut stranger =
+            StandIn::start(&["--profile".into(), "web".into(), "--patch".into(), "elsewhere.json".into()]);
+        std::fs::write(home.path().join(KERNEL_FILE), stranger.pid.to_string()).unwrap();
         let lock = HomeLock::acquire(home.path()).unwrap();
         assert!(lock.reaped.is_none(), "命令行对不上就不收");
-        assert!(stranger.try_wait().unwrap().is_none(), "无关的进程必须还活着");
-        let _ = stranger.kill();
+        assert!(stranger.alive(), "无关的进程必须还活着");
+        stranger.stop();
         drop(lock);
 
-        let mut orphan = sleeper(&["--profile".into(), "web".into(), "--patch".into(), patch]);
-        std::fs::write(home.path().join(KERNEL_FILE), orphan.id().to_string()).unwrap();
+        let mut orphan = StandIn::start(&["--profile".into(), "web".into(), "--patch".into(), patch]);
+        std::fs::write(home.path().join(KERNEL_FILE), orphan.pid.to_string()).unwrap();
         let lock = HomeLock::acquire(home.path()).unwrap();
         assert!(lock.reaped.as_deref().is_some_and(|text| text.contains("收掉了")), "{:?}", lock.reaped);
         let mut gone = false;
         for _ in 0..50 {
-            if orphan.try_wait().unwrap().is_some() {
+            if !orphan.alive() {
                 gone = true;
                 break;
             }
