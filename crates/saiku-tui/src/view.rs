@@ -777,6 +777,15 @@ fn sidebar(frame: &mut Frame, app: &App, area: Rect, t: &Theme) {
             lines.push(Line::styled(name, Style::default().fg(muted(t))));
             lines.push(Line::raw(clean(value)));
         }
+        // 池子只在 headless（真派工）里有；没有就不占一行 —— 空行比「未记录」诚实。
+        if let Some(ga) = &d.record.ga {
+            let who = match &d.record.account {
+                Some(account) => format!("{ga}/{account}"),
+                None => ga.clone(),
+            };
+            lines.push(Line::styled("池子", Style::default().fg(muted(t))));
+            lines.push(Line::raw(clean(&who)));
+        }
         if let Some(u) = &d.record.usage {
             lines.push(Line::raw(""));
             lines.push(Line::styled(
@@ -2479,6 +2488,8 @@ mod tests {
             health: "done".into(),
             activity: "idle".into(),
             model: app.boot.model.clone(),
+            ga: None,
+            account: None,
             started_at: 1,
             terminal: true,
             usage: None,
@@ -2498,6 +2509,25 @@ mod tests {
             truncated: false,
         }));
     }
+    /// 真派工用了哪个池：详情里必须能回答「这件活是哪个 key 跑的」。
+    #[test]
+    fn run_detail_shows_the_group_army_account() {
+        let mut a = app();
+        long_run(&mut a);
+        if let Some(detail) = a.detail.as_mut() {
+            detail.record.ga = Some("inf-ds".into());
+            detail.record.account = Some("inf-2".into());
+        }
+        let mut terminal = Terminal::new(TestBackend::new(140, 40)).unwrap();
+        terminal.draw(|f| draw(f, &mut a)).unwrap();
+        let buffer = terminal.backend().buffer();
+        assert!(
+            contains_wrapped(buffer, "inf-ds/inf-2"),
+            "详情里应显示池子/账户：{:?}",
+            row_text(buffer, 10)
+        );
+    }
+
     #[test]
     fn all_target_sizes_render_home_run_dialogs_and_both_themes() {
         for (width, height) in [(40, 12), (80, 24), (120, 30), (160, 40)] {

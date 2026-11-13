@@ -608,6 +608,8 @@ fn record(st: StatusFile) -> RunRecord {
             st.activity.summary.unwrap_or_default()
         ),
         model: st.model,
+        ga: st.ga,
+        account: st.account,
         started_at: st.started_at,
         terminal: st.terminal == Some(true),
         usage: st.usage,

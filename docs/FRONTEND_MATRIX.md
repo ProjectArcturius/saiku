@@ -25,7 +25,7 @@
 | Agent team（多角色协作） | `agent-team`、`tool-agent-team`（0.2.2 新增） | 无 | 无 | F3 | 先探测包在不在，再决定是否显示 |
 | 技能（skills） | `skill`、`skill-filesystem`、`skill-office` | 无 | 无 | F3 | 无入口，不显示 |
 | 图片 / 文件附件 | `file-upload`、`client-file-upload` | 无 | 无 | F4 | 无 vision 的 GA 必须拒绝读图任务（已有能力门槛） |
-| `@` 文件引用 | `file-reference-local` | 半（`@` 补全已有，仅文本路径） | 无 | F4 | 无该包时退化成纯文本路径 |
+| `@` 文件引用 | `file-reference-local` | 有（`@` 补全 + `@"带空格"` 语法与内核 `formatFileMention` 一致） | 无 | F4 | 内核没有该包时退化成纯文本路径（模型只能自己读文件） |
 | 交付物 / 展示 | `present`、`deliverable-file-references` | 无 | 无 | F4 | 无入口 |
 | Office（docx/xlsx/pptx） | `office-kit`、`tool-office` | 无 | 无 | F4 | 无入口；不要假装能读 |
 | 定时任务 | `schedule`、`tool-schedule`、`client-ui-schedule` | 无 | 无（有 `night` 控制器） | F4 | 显示「用 saiku night」 |
@@ -33,7 +33,7 @@
 | 审批（confirm） | `approval`、`user-approval`、`permission` | 有（`/approvals`、confirm 档） | 无（headless 拒绝 confirm） | F5 | 无审批通道时 confirm 档拒绝启动（已有） |
 | 浏览器/网络工具 | `tool-web`、`web-deepseek-api` | 无（内核工具直接可见） | 半（`--permission` 控制） | F6 | — |
 | 模型目录与切换 | `model/selection` | 有（模型对话框） | 有（`--model`） | — | — |
-| 供应商池（GA） | Saiku 自有 | 无 | 有（`--ga`、`ga ls`） | F6 | TUI 未显示用了哪个账户 |
+| 供应商池（GA） | Saiku 自有 | 半（运行详情显示池/账户） | 有（`--ga`、`ga ls`） | F6 | 交互会话不经过 GA；TUI 里还不能选池 |
 | 用量 / 成本 | `assistant/message.usage` | 有（`/usage`） | 有（`usage`） | — | 无费用换算（只有 token） |
 | 会话压缩 | `command-compact`、`compaction-*` | 无 | 自动 | — | 无手动入口 |
 | 遥测 / 会话日志上传 | `session-log-deepseek` | — | 已显式关闭 | — | 开关在 patch 里，不在界面 |
@@ -41,11 +41,12 @@
 
 ## 结论（现在最该做的三件）
 
-1. **F2 收尾**：`/goal` 已能发目标、页脚已显示轮次；还差「目标完成/受阻时的一句话」与
-   `/goal` 的取消（把目标清掉）。**下一步就做这个。**
+1. **F2 收尾**：`/goal` 已能发目标、页脚常驻轮次、完成/受阻各有一次性结论。
+   只剩「清掉目标」—— 内核没有对应的宿主 RPC，要等 F5 一起看。
 2. **F5 的 ask_user**：0.2.2 起内核多了一个会等人的工具；夜班与 headless 必须显式摘掉它，
    否则工人会停在一个没人回答的问题上。这是**安全/可用性**问题，优先级高于任何新功能。
-3. **F4 的 @ 引用**：TUI 已有 `@` 补全，只差把路径变成内核认的引用格式；成本最低、收益最直接。
+3. **F4 的剩余项**：`@` 引用已对齐内核语法；下一步是图片/文件附件（需要内核 0.2.2 的
+   `file-upload`，且 GA 的 vision 门槛已经能做拒绝）。
 
 ## 不做的
 

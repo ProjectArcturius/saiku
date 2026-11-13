@@ -62,6 +62,9 @@ pub struct RunRecord {
     pub health: String,
     pub activity: String,
     pub model: Option<String>,
+    /// 这件活从哪个集团军/账户取的号（headless 才有；交互会话为 `None`）。
+    pub ga: Option<String>,
+    pub account: Option<String>,
     pub started_at: u64,
     pub terminal: bool,
     pub usage: Option<Usage>,

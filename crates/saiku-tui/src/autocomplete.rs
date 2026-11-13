@@ -163,6 +163,15 @@ pub(crate) fn mention_query(text: &str, cursor: usize, trigger: char) -> Option<
         return None;
     }
     let upto = &text[..cursor];
+    // 带空格的路径用 `@"…` 语法（与内核的 `formatFileMention` 同一套）：引号里的空格
+    // 不是分界，所以这个分支要排在按空白切词之前。引号没闭合是正常状态 —— 用户正在打。
+    if let Some(open) = upto.rfind(&format!("{trigger}\"")) {
+        let at_word_start = open == 0 || upto[..open].chars().next_back().is_some_and(char::is_whitespace);
+        let quoted = &upto[open + 2..];
+        if at_word_start && !quoted.contains('"') && !quoted.contains(trigger) {
+            return Some((open, quoted));
+        }
+    }
     let start = upto
         .rfind(char::is_whitespace)
         .map(|index| index + 1)
@@ -176,6 +185,30 @@ pub(crate) fn mention_query(text: &str, cursor: usize, trigger: char) -> Option<
     Some((start, rest))
 }
 
+/// 把一条仓库路径写成内核认的引用：无空白用 `@path`，有空白用 `@"path"`。
+///
+/// 与 DSH `dsh-file-reference` 的 `formatFileMention` 对齐（含 `"` 或控制字符的路径
+/// 无法安全表达，宁可不提供候选，也不要插一段会被内核理解错的东西）。
+pub(crate) fn format_mention(path: &str) -> Option<String> {
+    if path.chars().any(|c| c.is_control() || c == '"') {
+        return None;
+    }
+    if path.chars().any(char::is_whitespace) {
+        Some(format!("@\"{path}\""))
+    } else {
+        Some(format!("@{path}"))
+    }
+}
+
+/// 从插入文本里取回路径（`@"a b"` 与 `@a` 两种）。`/runs` 的「最近文件」按它记。
+pub(crate) fn mention_path(insert: &str) -> String {
+    let text = insert.trim();
+    if let Some(rest) = text.strip_prefix("@\"") {
+        return rest.trim_end_matches('"').to_string();
+    }
+    text.trim_start_matches('@').to_string()
+}
+
 /// File candidates for the word after `@`. `insert` keeps a trailing space so the next
 /// keystroke starts a new word instead of extending the path.
 pub(crate) fn file_items(
@@ -187,14 +220,17 @@ pub(crate) fn file_items(
     index
         .matches(query, recent, limit)
         .into_iter()
-        .map(|path| Item {
-            insert: format!("@{path} "),
-            // The path is the whole row; there is no second label to show.
-            title: String::new(),
-            detail: format!("@{path}"),
-            available: true,
-            reason: None,
-            action: None,
+        .filter_map(|path| {
+            let mention = format_mention(&path)?;
+            Some(Item {
+                insert: format!("{mention} "),
+                // The path is the whole row; there is no second label to show.
+                title: String::new(),
+                detail: mention,
+                available: true,
+                reason: None,
+                action: None,
+            })
         })
         .collect()
 }
@@ -308,4 +344,23 @@ mod tests {
         assert_eq!(fuzzy("zz", "theme"), None);
         assert!(fuzzy("nw", "new").is_some(), "subsequences are enough");
     }
+    #[test]
+    fn mentions_with_spaces_use_the_quoted_grammar() {
+        assert_eq!(format_mention("src/main.rs").as_deref(), Some("@src/main.rs"));
+        assert_eq!(format_mention("docs/my notes.md").as_deref(), Some("@\"docs/my notes.md\""));
+        assert_eq!(format_mention("a\"b"), None, "引号无法安全表达");
+        assert_eq!(mention_path("@\"docs/my notes.md\""), "docs/my notes.md");
+        assert_eq!(mention_path("@src/main.rs"), "src/main.rs");
+    }
+
+    #[test]
+    fn a_quoted_mention_keeps_completing_inside_the_quotes() {
+        // 引号没闭合是正常状态：用户正在打。
+        assert_eq!(mention_query("看看 @\"my no", 14, '@'), Some((7, "my no")));
+        // 闭合之后就不再是活动 token。
+        assert_eq!(mention_query("看看 @\"my no\" 后续", 15, '@'), None);
+        // 引号前面必须是词首，否则只是正文里的引号。
+        assert_eq!(mention_query("x@\"a", 4, '@'), None);
+    }
+
 }

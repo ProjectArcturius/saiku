@@ -435,6 +435,27 @@ impl App {
                     if was_running && !conversation.running {
                         self.git = git_status(&self.boot.workspace);
                     }
+                    // 目标相位变了才通知：每轮都报一次会把页脚变成噪声。
+                    // 「完成 / 受阻」是一次性的结论，用户不该靠盯页脚才发现它结束了。
+                    let before = self.conversation.as_ref().and_then(|c| c.goal.clone());
+                    let after = conversation.goal.clone();
+                    if let Some(goal) = &after
+                        && before.as_ref().map(|g| g.phase) != Some(goal.phase)
+                    {
+                        use saiku_core::conversation::GoalPhase;
+                        self.notice = match goal.phase {
+                            GoalPhase::Active => match &goal.objective {
+                                Some(objective) => format!("目标已建立：{objective}"),
+                                None => "目标已建立".into(),
+                            },
+                            GoalPhase::Complete => "目标完成".into(),
+                            GoalPhase::Blocked => format!(
+                                "目标受阻：{}",
+                                goal.blocked_reason.as_deref().unwrap_or("未说明原因")
+                            ),
+                            GoalPhase::Unknown => self.notice.clone(),
+                        };
+                    }
                     self.conversation = Some(*conversation);
                 }
             }
@@ -2227,11 +2248,7 @@ impl App {
             self.editor
                 .replace_with_segment(popup.start, end, display, None);
             self.editor.insert(" ");
-            let path = item
-                .insert
-                .trim_start_matches('@')
-                .trim_end()
-                .to_string();
+            let path = autocomplete::mention_path(&item.insert);
             self.touch_recent_file(&path);
             return;
         }
@@ -3877,6 +3894,40 @@ mod tests {
         assert!(app.preferences.stash.is_empty());
         let saved = serde_json::to_string(&app.preferences).unwrap();
         assert!(saved.contains("\"stash\""), "暂存跟偏好一起落盘：{saved}");
+    }
+
+    /// 目标阶段的一次性结论：建立、完成、受阻各说一次；每轮都报会把页脚变成噪声。
+    #[test]
+    fn goal_phase_changes_are_announced_once_each() {
+        use saiku_core::conversation::{Conversation, GoalPhase, GoalState};
+        let mut app = app();
+        ready(&mut app);
+        app.session_id = Some("s1".into());
+        let push = |app: &mut App, phase: GoalPhase, reason: Option<&str>| {
+            app.update(Update::Session(saiku_core::service::Event::Conversation {
+                conversation: Box::new(Conversation {
+                    session_id: "s1".into(),
+                    goal: Some(GoalState {
+                        objective: Some("补齐导航页".into()),
+                        phase,
+                        rounds: 2,
+                        max_rounds: Some(24),
+                        blocked_reason: reason.map(str::to_string),
+                    }),
+                    ..Conversation::default()
+                }),
+            }));
+        };
+        push(&mut app, GoalPhase::Active, None);
+        assert!(app.notice.contains("目标已建立"), "{}", app.notice);
+        push(&mut app, GoalPhase::Blocked, Some("round-limit"));
+        assert!(app.notice.contains("目标受阻") && app.notice.contains("round-limit"), "{}", app.notice);
+        push(&mut app, GoalPhase::Complete, None);
+        assert!(app.notice.contains("目标完成"), "{}", app.notice);
+        // 同相位再推一帧不重复通知。
+        app.notice = "别动".into();
+        push(&mut app, GoalPhase::Complete, None);
+        assert_eq!(app.notice, "别动");
     }
 
     /// `/goal` 走的是与 headless `--goal` 同一条提示词（`saiku_core::goal`）：
