@@ -20,7 +20,7 @@
 | 会话检索 | `session-query-sqlite` | 有 | 无 | — | 无索引时 `/search` 报「本内核未开检索」 |
 | 会话时间线 | `session/*` | 有 | 无 | — | — |
 | **目标（goal）** | `goal`、`goal-round-driver`、`tool-goal` | **半**（`/goal` 已接、页脚显示轮次） | 有（`--goal`） | **F2** | 缺 `/goal` 的暂停/恢复/收尾展示；内核无目标时 `/goal` 明确报错 |
-| 内核斜杠命令（`/compact` 等） | `commands/list`、`commands/execute` | 有（`/kernel` 列出并插入；不认识的 `/x` 原样转发，内核拒绝时回报原文） | 无 | F3 | 命令表不复制；`/` 补全里还没混入内核命令（下一步），只能先 `/kernel` 选 |
+| 内核斜杠命令（`/compact` 等） | `commands/list`、`commands/execute` | 有（`/` 补全里与自家命令并列、`/kernel` 可浏览；不认识的 `/x` 原样转发，内核拒绝时回报原文） | 无 | F3 | 命令表不复制；补全按会话懒取，换会话时重取 |
 | 计划 / 只读模式 | `plan-mode`（Saiku 关掉，自己管） | 有（`/plan`） | 有（`--permission readonly`） | — | — |
 | 子 agent | `subagent`、`subagent-fork/spawn`、`client-ui-subagent` | 有（`/subagents` 只读跳转） | 半（内核自建） | F3 | 缺「从 TUI 派一个子 agent」；无该能力时按钮禁掉 |
 | Agent team（多角色协作） | `agent-team`、`tool-agent-team`（0.2.2 新增） | 无 | 无 | F3 | 先探测包在不在，再决定是否显示 |

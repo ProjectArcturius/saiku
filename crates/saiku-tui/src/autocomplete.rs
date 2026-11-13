@@ -79,6 +79,7 @@ pub(crate) fn slash_items(
     query: &str,
     keymap: &Keymap,
     availability: &dyn Fn(Action) -> Option<String>,
+    kernel: &[saiku_core::service::KernelCommandInfo],
 ) -> Vec<Item> {
     let mut scored: Vec<(i32, usize, Item)> = Vec::new();
     for (index, entry) in commands::ENTRIES.iter().enumerate() {
@@ -114,6 +115,30 @@ pub(crate) fn slash_items(
                 available,
                 reason,
                 action: Some(entry.action),
+            },
+        ));
+    }
+    // 内核注册的命令：只转发，不复制语义。排在 Saiku 自己的命令之后（同分时），
+    // 因为用户自己的命令才是这个产品的表面；内核命令是补充。
+    for (offset, command) in kernel.iter().enumerate() {
+        let Some(score) = fuzzy(query, &command.name) else {
+            continue;
+        };
+        let slash = format!("/{}", command.name);
+        let detail = match &command.hint {
+            Some(hint) => format!("{slash} {hint} · 内核"),
+            None => format!("{slash} · 内核"),
+        };
+        scored.push((
+            score,
+            commands::ENTRIES.len() + offset,
+            Item {
+                insert: if command.hint.is_some() { format!("{slash} ") } else { slash },
+                title: command.description.clone(),
+                detail,
+                available: true,
+                reason: None,
+                action: None,
             },
         ));
     }
@@ -271,7 +296,7 @@ mod tests {
 
     #[test]
     fn empty_query_lists_every_slash_command_in_registry_order() {
-        let items = slash_items("", &keymap(), &available);
+        let items = slash_items("", &keymap(), &available, &[]);
         let expected = commands::ENTRIES.iter().filter(|e| e.slash.is_some()).count();
         assert_eq!(items.len(), expected);
         assert_eq!(items[0].insert, "/new");
@@ -281,13 +306,13 @@ mod tests {
 
     #[test]
     fn filtering_prefers_prefix_and_boundary_matches() {
-        let items = slash_items("th", &keymap(), &available);
+        let items = slash_items("th", &keymap(), &available, &[]);
         assert_eq!(items[0].insert, "/theme", "`th` should find /theme first: {:?}", items);
         assert!(
             !items.iter().any(|item| item.insert == "/tools"),
             "`th` is not a subsequence of `tools`"
         );
-        let items = slash_items("to", &keymap(), &available);
+        let items = slash_items("to", &keymap(), &available, &[]);
         assert_eq!(items[0].insert, "/tools", "a prefix match ranks first: {:?}", items);
     }
 
@@ -297,7 +322,7 @@ mod tests {
     fn unavailable_commands_stay_listed_with_their_reason() {
         let items = slash_items("plan", &keymap(), &|action| {
             (action == Action::Plan).then(|| "现在不能切：这一轮还在进行".to_string())
-        });
+        }, &[]);
         let plan = items.iter().find(|item| item.action == Some(Action::Plan)).unwrap();
         assert!(!plan.available);
         assert!(plan.reason.as_deref().unwrap().contains("这一轮还在进行"));
@@ -306,7 +331,7 @@ mod tests {
     fn state_dependent_availability_comes_from_the_caller() {
         let items = slash_items("cancel", &keymap(), &|action| {
             (action == Action::Cancel).then(|| "当前没有活动运行".to_string())
-        });
+        }, &[]);
         let cancel = items.iter().find(|item| item.action == Some(Action::Cancel)).unwrap();
         assert!(!cancel.available);
         assert_eq!(cancel.reason.as_deref(), Some("当前没有活动运行"));
@@ -315,19 +340,19 @@ mod tests {
     #[test]
     fn only_required_arguments_keep_a_trailing_space() {
         // 可选参数（`[…]`）：不带空格，Enter 直接执行（没参数时打开选择器）。
-        let items = slash_items("effort", &keymap(), &available);
+        let items = slash_items("effort", &keymap(), &available, &[]);
         let effort = items.iter().find(|item| item.action == Some(Action::Effort)).unwrap();
         assert_eq!(effort.insert, "/effort");
         assert!(effort.detail.contains("[级别|default]"));
         // 必需参数（`<…>`）：带空格，等参数。
-        let items = slash_items("search", &keymap(), &available);
+        let items = slash_items("search", &keymap(), &available, &[]);
         let search = items.iter().find(|item| item.action == Some(Action::Search)).unwrap();
         assert_eq!(search.insert, "/search ");
     }
 
     #[test]
     fn selection_is_clamped_and_never_empty_when_open() {
-        let mut popup = Autocomplete::new('/', 0, String::new(), slash_items("", &keymap(), &available))
+        let mut popup = Autocomplete::new('/', 0, String::new(), slash_items("", &keymap(), &available, &[]))
             .unwrap();
         popup.move_by(-1);
         assert_eq!(popup.selected, 0);
@@ -362,5 +387,35 @@ mod tests {
         // 引号前面必须是词首，否则只是正文里的引号。
         assert_eq!(mention_query("x@\"a", 4, '@'), None);
     }
+
+    /// 内核命令混进 `/` 补全：用户不必先 `/kernel` 再挑一遍。
+    #[test]
+    fn kernel_commands_join_the_slash_completion() {
+        let kernel = vec![saiku_core::service::KernelCommandInfo {
+            name: "compact".into(),
+            description: "压缩会话历史".into(),
+            hint: None,
+            attachments: false,
+        }];
+        let items = slash_items("com", &keymap(), &available, &kernel);
+        let compact = items.iter().find(|item| item.insert == "/compact").unwrap();
+        assert_eq!(compact.action, None, "内核命令没有 Saiku action：只转发");
+        assert!(compact.detail.contains("内核"), "{}", compact.detail);
+    }
+
+    /// 带参数提示的内核命令补一个空格，等参数；无参数的直接回车执行。
+    #[test]
+    fn a_kernel_command_with_a_hint_waits_for_its_argument() {
+        let kernel = vec![saiku_core::service::KernelCommandInfo {
+            name: "goal".into(),
+            description: "立目标".into(),
+            hint: Some("<目标>".into()),
+            attachments: false,
+        }];
+        let items = slash_items("go", &keymap(), &available, &kernel);
+        let goal = items.iter().find(|item| item.insert.starts_with("/goal")).unwrap();
+        assert_eq!(goal.insert, "/goal ");
+    }
+
 
 }

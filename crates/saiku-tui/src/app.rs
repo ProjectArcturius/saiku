@@ -141,6 +141,8 @@ pub(crate) struct App {    pub boot: Boot,
     pub kernel_commands: Vec<saiku_core::service::KernelCommandInfo>,
     /// 读到命令表之后要不要直接打开列表（`/kernel` 的意图）。
     kernel_wanted: bool,
+    /// 会话换了、命令表可能不同：下一次打 `/` 时先取一次。
+    kernel_stale: bool,
     /// 下一次请求要用的模型。启动时来自配置，模型对话框改动它。
     pub model: Option<ModelRef>,
     pub model_prefs: ModelPrefs,
@@ -262,6 +264,7 @@ impl App {
             ga,
             kernel_commands: Vec::new(),
             kernel_wanted: false,
+            kernel_stale: true,
             theme,
             editor,
             runs: Vec::new(),
@@ -432,6 +435,8 @@ impl App {
                 if self.session_id.is_none() && self.pending.is_some() {
                     self.session_id = Some(session_id);
                 }
+                self.kernel_commands.clear();
+                self.kernel_stale = true;
             }
             E::Conversation { conversation } => {
                 if self.session_id.as_deref() == Some(conversation.session_id.as_str()) {
@@ -1816,6 +1821,8 @@ impl App {
         }
         self.conversation = None;
         self.pending = None;
+        self.kernel_commands.clear();
+        self.kernel_stale = true;
         self.selected = None;
         self.detail = None;
         self.scroll = None;
@@ -2130,7 +2137,7 @@ impl App {
             Event::Paste(text) => {
                 if self.dialog.is_none() {
                     self.insert_paste(&text);
-                    self.refresh_autocomplete();
+                    self.refresh_autocomplete(requests);
                 } else if self.theme_dialog.is_some() {
                     // A pasted theme name filters the list the same way typing does. Newlines
                     // are dropped rather than kept: the filter is a single-line field, and a
@@ -2388,27 +2395,27 @@ impl App {
             // 能区分它（不需要 kitty 协议）；终端分不出来时会当成普通 Enter 发送。
             KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
                 self.editor.insert("\n");
-                self.refresh_autocomplete();
+                self.refresh_autocomplete(requests);
             }
             // 一次粘贴里的换行：插入，不提交。
             KeyCode::Enter if pasted => {
                 self.editor.insert("\n");
-                self.refresh_autocomplete();
+                self.refresh_autocomplete(requests);
             }
             // Enter 发送（§7.4 的「Enter 提交」；OpenCode 同）。F6 保留成兼容别名，
             // 不再出现在任何提示里。
             KeyCode::Enter | KeyCode::F(6) => return self.submit(requests),
             KeyCode::Char(c) if !ctrl && !alt => {
                 self.editor.insert(&c.to_string());
-                self.refresh_autocomplete();
+                self.refresh_autocomplete(requests);
             }
             KeyCode::Backspace => {
                 self.editor.backspace();
-                self.refresh_autocomplete();
+                self.refresh_autocomplete(requests);
             }
             KeyCode::Delete => {
                 self.editor.delete();
-                self.refresh_autocomplete();
+                self.refresh_autocomplete(requests);
             }
             KeyCode::Left => self.editor.left(),
             KeyCode::Right => self.editor.right(),
@@ -2416,21 +2423,21 @@ impl App {
             KeyCode::End => self.editor.end(),
             KeyCode::Up if ctrl => {
                 self.editor.history(true);
-                self.refresh_autocomplete();
+                self.refresh_autocomplete(requests);
             }
             KeyCode::Down if ctrl => {
                 self.editor.history(false);
-                self.refresh_autocomplete();
+                self.refresh_autocomplete(requests);
             }
             KeyCode::Up if self.editor.text.contains('\n') => self.editor.vertical(true),
             KeyCode::Down if self.editor.text.contains('\n') => self.editor.vertical(false),
             KeyCode::Up => {
                 self.editor.history(true);
-                self.refresh_autocomplete();
+                self.refresh_autocomplete(requests);
             }
             KeyCode::Down => {
                 self.editor.history(false);
-                self.refresh_autocomplete();
+                self.refresh_autocomplete(requests);
             }
             KeyCode::PageUp => self.scroll_up(8),
             KeyCode::PageDown => self.scroll_down(8),
@@ -2444,14 +2451,28 @@ impl App {
     ///
     /// Two triggers share the popup: `/` at the start of the draft (commands) and `@` at the
     /// start of the current word (files). The trigger decides where accepting starts replacing.
-    fn refresh_autocomplete(&mut self) {
+    fn refresh_autocomplete(&mut self, requests: &Sender<Request>) {
         if self.dialog.is_some() {
             self.autocomplete = None;
             return;
         }
         if let Some(query) = autocomplete::trigger_query(&self.editor.text, '/') {
+            // 命令表按会话/Agent 遮蔽：换了会话就先取一次，别拿上一条会话的命令糊弄人。
+            if self.kernel_stale && self.session_id.is_some() {
+                self.kernel_stale = false;
+                let _ = requests.send(Request::Session(
+                    saiku_core::service::Command::ListKernelCommands {
+                        session_id: self.session_id.clone(),
+                    },
+                ));
+            }
             let items =
-                autocomplete::slash_items(query, &self.keymap, &|action| self.availability(action));
+                autocomplete::slash_items(
+                    query,
+                    &self.keymap,
+                    &|action| self.availability(action),
+                    &self.kernel_commands,
+                );
             self.autocomplete = Autocomplete::new('/', 0, query.to_string(), items);
             return;
         }
