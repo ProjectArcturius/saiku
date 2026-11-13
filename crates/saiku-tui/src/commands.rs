@@ -33,6 +33,8 @@ pub(crate) enum Action {
     Goal,
     /// 最近一次夜班：完成/在跑/失败与控制器心跳。
     Night,
+    /// 把一件长活派到 headless（可指定池子与能力要求）。
+    Dispatch,
     /// 暂存当前草稿；输入框为空时列出暂存的草稿取回。
     Stash,
     /// 还有哪几条审批在等回答。
@@ -288,6 +290,18 @@ pub(crate) const ENTRIES: &[Entry] = &[
         category: Category::Session,
         slash: Some("/subagents"),
         arg: None,
+        keys: &[],
+        context: Context::Composer,
+        unavailable: None,
+        palette: true,
+    },
+    Entry {
+        action: Action::Dispatch,
+        id: "runs.dispatch",
+        title: "派一件活到池子（可带 --ga / --need）",
+        category: Category::Session,
+        slash: Some("/dispatch"),
+        arg: Some("<任务>"),
         keys: &[],
         context: Context::Composer,
         unavailable: None,

@@ -513,6 +513,13 @@ async fn start(
     if let Some(effort) = &request.effort {
         command.arg("--effort").arg(effort);
     }
+    // 派工：池子与能力要求原样透传；取号、冷却、名额都在 `saiku run` 那一侧做。
+    if let Some(ga) = &request.ga {
+        command.arg("--ga").arg(ga);
+    }
+    for need in &request.needs {
+        command.arg("--need").arg(need);
+    }
     let mut child = command.spawn().map_err(|e| e.to_string())?;
     let mut stderr = child.stderr.take().ok_or("子进程缺 stderr")?;
     let drain = tokio::spawn(async move {

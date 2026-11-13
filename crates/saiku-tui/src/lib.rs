@@ -92,6 +92,10 @@ pub struct StartRequest {
     pub agent: String,
     pub permission: String,
     pub effort: Option<String>,
+    /// 从哪个集团军取号（`--ga`）。只在派工时有意义：交互会话走内核，不经过池子。
+    pub ga: Option<String>,
+    /// 对模型的能力要求（`--need vision` / `context=…`），原样传给 `saiku run`。
+    pub needs: Vec<String>,
     /// 这一次请求用的路由，来自配置或模型对话框里选定的那条。
     ///
     /// 切换模型只影响**下一次**请求：worker 的路由在 `initialize` 时就被解析并钉住

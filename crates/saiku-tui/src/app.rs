@@ -947,6 +947,15 @@ impl App {
                     self.open_dialog(Dialog::Subagents);
                 }
             }
+            Action::Dispatch => match arg {
+                Some(text) => match parse_dispatch(text) {
+                    Ok((prompt, ga, needs)) => {
+                        self.start_headless(prompt, ga, needs, requests);
+                    }
+                    Err(message) => self.notice = message,
+                },
+                None => self.notice = "用法：/dispatch [--ga 池子] [--need vision] <任务>".into(),
+            },
             Action::Night => match saiku_core::night::latest(&self.boot.state_root, crate::view::now_ms()) {
                 Some(report) => {
                     let mut lines = vec![report.one_line(), String::new()];
@@ -1487,12 +1496,25 @@ impl App {
             }
             return self.submit_to_session(requests);
         }
-        if self.active.is_some() {
-            self.notice = "已有活动运行；Esc 取消，结束后可发起新请求".into();
+        let text = self.editor.take();
+        self.start_headless(text, None, Vec::new(), requests)
+    }
+
+    /// 起一次 headless 运行（`saiku run`）。普通提交在交互内核不可用时走这里；
+    /// `/dispatch` 则是**主动**走这里 —— 把长活交给池子，人留在 TUI 里看 `/runs`。
+    fn start_headless(
+        &mut self,
+        prompt: String,
+        ga: Option<String>,
+        needs: Vec<String>,
+        requests: &Sender<Request>,
+    ) -> bool {
+        if prompt.trim().is_empty() {
+            self.notice = "要派什么活？例：/dispatch 把导航页补齐并跑测试".into();
             return false;
         }
-        if self.boot.config_error.is_some() {
-            self.notice = self.boot.config_error.clone().unwrap();
+        if self.active.is_some() {
+            self.notice = "已有活动运行；Esc 取消，结束后可发起新请求".into();
             return false;
         }
         self.serial += 1;
@@ -1514,10 +1536,12 @@ impl App {
         }
         let request = StartRequest {
             id: id.clone(),
-            prompt: self.editor.take(),
+            prompt,
             agent: self.agent.clone(),
             permission: self.permission.clone(),
             effort: self.effort.clone(),
+            ga: ga.clone(),
+            needs: needs.clone(),
             model,
         };
         if requests.send(Request::Start(request)).is_err() {
@@ -1528,9 +1552,14 @@ impl App {
         self.selected = Some(id);
         self.detail = None;
         self.scroll = None;
-        self.notice = "正在启动独立请求；工具进度实时更新，正文在结束后显示".into();
+        self.notice = match (&ga, needs.is_empty()) {
+            (Some(ga), _) => format!("已派出到池子 {ga}；/runs 看进度"),
+            (None, false) => format!("已派出（要求 {}）；/runs 看进度", needs.join(" ")),
+            _ => "正在启动独立请求；工具进度实时更新，正文在结束后显示".into(),
+        };
         false
     }
+
     /// 会话这条路：没有当前会话就由服务新建；运行中也能发（内核按 `queue` 排到下一轮）。
     fn submit_to_session(&mut self, requests: &Sender<Request>) -> bool {
         let text = self.editor.take();
@@ -2466,6 +2495,42 @@ fn resolve_theme(preferences: &Preferences) -> (Theme, Option<String>) {
             Some(format!("{error}；已回退到默认主题 {DEFAULT_THEME}")),
         ),
     }
+}
+
+/// `/dispatch` 的参数：`[--ga ID] [--need X]… <任务原文>`。
+///
+/// 手写解析而不是通用 argv 库：只有两个开关，而「任务原文里的 `--ga` 不是开关」
+/// 这条边界必须明确 —— 任务书里出现 `--flag` 很常见。
+fn parse_dispatch(text: &str) -> Result<(String, Option<String>, Vec<String>), String> {
+    let mut tokens = text.split_whitespace().peekable();
+    let mut ga = None;
+    let mut needs = Vec::new();
+    let mut rest: Vec<&str> = Vec::new();
+    while let Some(token) = tokens.next() {
+        match token {
+            "--ga" => match tokens.next() {
+                Some(id) => ga = Some(id.to_string()),
+                None => return Err("`--ga` 后面缺池子 id".into()),
+            },
+            "--need" => match tokens.next() {
+                Some(need) => needs.push(need.to_string()),
+                None => return Err("`--need` 后面缺要求（vision / context=…）".into()),
+            },
+            other if other.starts_with("--") => {
+                return Err(format!("不认识的开关 `{other}`；/dispatch 只认 --ga 与 --need"));
+            }
+            other => {
+                rest.push(other);
+                // 任务原文里出现 `--ga` 之类是正常的（任务书里就有），从这里起整段收下。
+                rest.extend(tokens.by_ref());
+                break;
+            }
+        }
+    }
+    if rest.is_empty() {
+        return Err("要派什么活？例：/dispatch --ga inf-ds 把导航页补齐".into());
+    }
+    Ok((rest.join(" "), ga, needs))
 }
 
 pub(crate) fn token(n: Option<u64>) -> String {
@@ -3937,6 +4002,42 @@ mod tests {
         assert!(app.preferences.stash.is_empty());
         let saved = serde_json::to_string(&app.preferences).unwrap();
         assert!(saved.contains("\"stash\""), "暂存跟偏好一起落盘：{saved}");
+    }
+
+    /// `/dispatch`：把长活派到 TUI 之外（headless），池子与能力要求从请求里带出去。
+    #[test]
+    fn dispatch_sends_a_headless_request_with_the_pool_and_needs() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut app = app();
+        ready(&mut app);
+        let _ = app.execute(Action::Dispatch, Some("--ga inf-ds --need vision 把导航页补齐"), &tx);
+        let Request::Start(request) = rx.recv().unwrap() else {
+            panic!("应发一条 Start");
+        };
+        assert_eq!(request.ga.as_deref(), Some("inf-ds"));
+        assert_eq!(request.needs, vec!["vision".to_string()]);
+        assert_eq!(request.prompt, "把导航页补齐");
+        assert!(app.active.is_some(), "派出后要有活动运行");
+        assert!(app.notice.contains("inf-ds"), "{}", app.notice);
+    }
+
+    #[test]
+    fn dispatch_rejects_unknown_switches_without_sending() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut app = app();
+        ready(&mut app);
+        let _ = app.execute(Action::Dispatch, Some("--worktree 干活"), &tx);
+        assert!(app.notice.contains("--ga"), "{}", app.notice);
+        assert!(rx.try_recv().is_err(), "参数错就不该派出去");
+    }
+
+    /// 任务原文里的 `--` 不是开关：从第一个非开关词起整段吃下。
+    #[test]
+    fn dispatch_keeps_flags_that_appear_inside_the_task_text() {
+        let (prompt, ga, needs) = parse_dispatch("--ga gsh-1 跑 cargo test -- --seed").unwrap();
+        assert_eq!(ga.as_deref(), Some("gsh-1"));
+        assert!(needs.is_empty());
+        assert_eq!(prompt, "跑 cargo test -- --seed");
     }
 
     /// `/night` 从状态根读最近一次夜班：完成/在跑/失败与心跳，一行是结论。

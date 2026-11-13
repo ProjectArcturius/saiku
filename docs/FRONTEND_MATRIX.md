@@ -34,7 +34,7 @@
 | 审批（confirm） | `approval`、`user-approval`、`permission` | 有（`/approvals`、confirm 档） | 无（headless 拒绝 confirm） | F5 | 无审批通道时 confirm 档拒绝启动（已有） |
 | 浏览器/网络工具 | `tool-web`、`web-deepseek-api` | 无（内核工具直接可见） | 半（`--permission` 控制） | F6 | — |
 | 模型目录与切换 | `model/selection` | 有（模型对话框） | 有（`--model`） | — | — |
-| 供应商池（GA） | Saiku 自有 | 半（运行详情显示池/账户） | 有（`--ga`、`ga ls`） | F6 | 交互会话不经过 GA；TUI 里还不能选池 |
+| 供应商池（GA） | Saiku 自有 | 有（`/dispatch --ga … --need …` 派出、`/runs` 详情看池/账户） | 有（`--ga`、`ga ls`） | F6 | 交互会话不经过 GA；`/ga` 选择器未做（现在靠命令行参数） |
 | 用量 / 成本 | `assistant/message.usage` | 有（`/usage`） | 有（`usage`） | — | 无费用换算（只有 token） |
 | 会话压缩 | `command-compact`、`compaction-*` | 无 | 自动 | — | 无手动入口 |
 | 遥测 / 会话日志上传 | `session-log-deepseek` | — | 已显式关闭 | — | 开关在 patch 里，不在界面 |
@@ -48,6 +48,9 @@
    否则工人会停在一个没人回答的问题上。这是**安全/可用性**问题，优先级高于任何新功能。
 3. **F4 的剩余项**：`@` 引用已对齐内核语法；下一步是图片/文件附件（需要内核 0.2.2 的
    `file-upload`，且 GA 的 vision 门槛已经能做拒绝）。
+
+补充（2026-11-13 本轮）：`/dispatch` 让「从 TUI 把一件长活交给池子」成立；
+`/night` 让「昨晚怎么样」不必离开 TUI。两者都只是读/转发，不新增内核能力。
 
 ## 不做的
 

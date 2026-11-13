@@ -1707,10 +1707,13 @@ fn help_popup(frame: &mut Frame, app: &App, area: Rect, t: &Theme) {
         ..inner
     };
     let mut lines: Vec<Line<'static>> = Vec::new();
+    // 分类标题的位置：分两栏时尽量从分类边界切开，不把一组按键劈成两半。
+    let mut headers: Vec<usize> = Vec::new();
     let mut category: Option<Category> = None;
     for row in app.help_rows() {
         if category != Some(row.category) {
             category = Some(row.category);
+            headers.push(lines.len());
             lines.push(Line::styled(
                 clean(row.category.label()),
                 Style::default()
@@ -1734,10 +1737,33 @@ fn help_popup(frame: &mut Frame, app: &App, area: Rect, t: &Theme) {
             Span::raw(clean(&detail)),
         ]));
     }
-    // 只有**溢出时**才留一行放「↓ 还有」；刚好装得下时把它还给内容 ——
-    // 反馈里最烦的就是「明明只差一行却说还有」。Ctrl+P 在最后一行，不能被挤掉。
+    // 排版优先级：一屏装得下就用一屏；装不下分两栏（从分类边界切）；两栏也放不下
+    // 才退回滚动。**「全部绑定一眼看得全」是帮助页的约定** —— 每加一条命令就靠滚动
+    // 才能看到最后一条，等于把「有哪些键」变成猜谜。
     let total = lines.len();
     let full = inner.height as usize;
+    if total > full && inner.width >= 40 {
+        let half = total / 2;
+        let split = headers
+            .iter()
+            .copied()
+            .filter(|&i| i > 0 && i < total)
+            .min_by_key(|&i| i.abs_diff(half))
+            .unwrap_or(half);
+        let gap: u16 = 2;
+        let col = inner.width.saturating_sub(gap) / 2;
+        let left: Vec<Line<'static>> = lines[..split].to_vec();
+        let right: Vec<Line<'static>> = lines[split..].to_vec();
+        if left.len() <= full && right.len() <= full {
+            for (part, x) in [(left, inner.x), (right, inner.x + col + gap)] {
+                frame.render_widget(
+                    Paragraph::new(part).wrap(ratatui::widgets::Wrap { trim: true }),
+                    Rect::new(x, inner.y, col, inner.height),
+                );
+            }
+            return;
+        }
+    }
     let visible = if total <= full { full } else { full.saturating_sub(1) };
     let start = app.help_scroll.min(lines.len().saturating_sub(1));
     frame.render_widget(
