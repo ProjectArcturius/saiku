@@ -50,6 +50,32 @@ const TERMINAL_GRACE: Duration = Duration::from_secs(3);
 /// 收尾时等待进程退出的上限。
 const TERMINATE_GRACE: Duration = Duration::from_secs(10);
 
+/// 一个已占住的名额：刷心跳直到进程结束，退出时把租约目录删掉。
+///
+/// 释放放在 Drop 里而不是收尾路径上：收尾有过很多条（成功、失败、取消、超时、
+/// 进程被强杀之外的所有情况），漏一条就永久少一个名额。
+struct LeaseGuard {
+    dir: PathBuf,
+}
+
+impl LeaseGuard {
+    fn hold(dir: PathBuf) -> Self {
+        let beat = dir.clone();
+        let _ = std::fs::create_dir_all(&beat);
+        std::thread::spawn(move || loop {
+            let _ = std::fs::write(beat.join("beat"), crate::status::now_ms().to_string());
+            std::thread::sleep(Duration::from_secs(25));
+        });
+        Self { dir }
+    }
+}
+
+impl Drop for LeaseGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
 /// 通过校验、可以执行的任务。
 struct Prepared {
     config: WorkerConfig,
@@ -399,6 +425,8 @@ async fn execute(prepared: Prepared) -> i32 {
             runtime_pid: None,
             workspace: prepared.plan.workspace.display().to_string(),
             model: prepared.config.model.as_ref().map(|m| format!("{}/{}", m.provider, m.model)),
+            ga: prepared.config.ga.clone(),
+            account: prepared.config.account.clone(),
             assigned_by: prepared.assigned_by.clone(),
             title: prepared.title.clone(),
             started_at: started,
@@ -418,6 +446,10 @@ async fn execute(prepared: Prepared) -> i32 {
             },
         },
     );
+
+    // 容量租约：心跳跟着监工活着，监工死了心跳就停 —— 取号那边按过期回收。
+    // 释放用 Drop，任何提前返回（失败、取消、超时）都不会漏掉名额。
+    let _lease = prepared.config.capacity_lease.clone().map(LeaseGuard::hold);
 
     let _ = sink.state(WorkerState::Accepted, "任务书与启动配置已通过校验");
     let _ = sink.diagnostic(

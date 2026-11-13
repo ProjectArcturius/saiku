@@ -115,6 +115,7 @@ fn route() -> RouteSpec {
         display_name: None,
         key_env: "SAIKU_KEY_M3_LIVE".into(),
         key_source: "env:SAIKU_KEY_M3_LIVE".into(),
+        auth_id: None,
     }
 }
 

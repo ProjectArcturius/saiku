@@ -322,6 +322,7 @@ mod tests {
             display_name: Some("OpenCode Go".into()),
             key_env: "SAIKU_KEY_OPENCODE_GO".into(),
             key_source: "auth".into(),
+            auth_id: None,
         }
     }
 

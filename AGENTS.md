@@ -14,7 +14,7 @@ DSH 对非 DS 模型是否适用的调查：[docs/DSH_FINDINGS.md](docs/DSH_FIND
 人格与风格怎么装（Claude Code 的做法）：[docs/PERSONA_FINDINGS.md](docs/PERSONA_FINDINGS.md)。
 不可让渡的规则与「什么算个性化」：[prompts/constitution.md](prompts/constitution.md)（草案）。
 TUI 派工计划与状态（**队列 2026-10-14 起暂停**）：[docs/M4_PLAN.md](docs/M4_PLAN.md)；派工手册：[tasks/m4/README.md](tasks/m4/README.md)。
-授权 → DSH 执行层的映射与缺口：[docs/M3_GUARD.md](docs/M3_GUARD.md)。DSH 0.2.1 Remote 层的协议核对：[docs/REMOTE_0.2.1.md](docs/REMOTE_0.2.1.md)。
+授权 → DSH 执行层的映射与缺口：[docs/M3_GUARD.md](docs/M3_GUARD.md)。供应商账户池（集团军）：[docs/GROUP_ARMY.md](docs/GROUP_ARMY.md)。DSH 0.2.1 Remote 层的协议核对：[docs/REMOTE_0.2.1.md](docs/REMOTE_0.2.1.md)。
 GUI 怎么热插拔地研发与发布（Windows + Linux）：[docs/GUI_PLUGGABLE.md](docs/GUI_PLUGGABLE.md)。用 saiku 工人替代 OpenCode 工人的复盘：[docs/SAIKU_WORKERS_REVIEW_2026-10-14.md](docs/SAIKU_WORKERS_REVIEW_2026-10-14.md)。
 
 - **2026-10-14 补记**：用户随后要求用 saiku 工人把 TUI 做到日常可用，W1（Markdown / 主题 / 模型对话框）与 M3 第一段已合入；同日暂停派工，下一步重心转 GUI，剩余 TUI 队列可由替班按手册继续。**本机 C 盘已满：worktree、TEMP、构建输出都在 D 盘**（见 tasks/m4/README.md）。

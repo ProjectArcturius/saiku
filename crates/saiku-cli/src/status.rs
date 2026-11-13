@@ -100,6 +100,12 @@ pub struct StatusFile {
     pub workspace: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// 这次从哪个集团军取的号（`group_army.<id>`）。缺席 = 没用池子。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ga: Option<String>,
+    /// 池子里的哪个账户。夜班靠它回答「昨晚哪个 key 在拖后腿」。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account: Option<String>,
     /// 谁派的这件任务 —— 派工关系的**边**。缺席 = 没记录。
     ///
     /// 外部监控程序（`cute-agents-monitor`）拿它把「任务书流向」画出来：
@@ -495,6 +501,8 @@ pub fn write_preflight_failure(run_dir: &Path, failure: PreflightFailure) -> boo
         runtime_pid: None,
         workspace: failure.workspace,
         model: failure.model,
+        ga: None,
+        account: None,
         assigned_by: failure.assigned_by,
         title: failure.title,
         started_at: now,
@@ -570,6 +578,8 @@ mod tests {
             runtime_pid: None,
             workspace: "/w".into(),
             model: None,
+            ga: None,
+            account: None,
             assigned_by: None,
             title: None,
             started_at: now - 18 * 60_000,

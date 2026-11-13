@@ -87,6 +87,12 @@ pub struct RouteSpec {
     pub key_env: String,
     /// `auth`（saiku auth.json）、`env:<变量>`、`file:<路径>`。
     pub key_source: String,
+    /// `key_source = auth` 时去 auth.json 的哪一项取钥匙。缺席 = `provider_id`。
+    ///
+    /// GA 的账户 id（`inf-2`）与 provider 块（`inferknock`）不是同一个名字：池子按账户
+    /// 轮换，provider 的地址与协议只有一份。这个字段就是那条缝。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -258,6 +264,15 @@ pub struct WorkerConfig {
     /// 省略就不采集 —— 不猜基线。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub git_base: Option<String>,
+    /// 这次运行从哪个集团军取的号（`saiku.json` 的 `group_army.<id>`）。缺席 = 没用池子。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ga: Option<String>,
+    /// 池子里的哪个账户（auth.json 的条目 id）。它决定了用哪把 key。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account: Option<String>,
+    /// 已经占住的容量租约目录。监工负责刷心跳与释放；缺席 = 不占名额。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capacity_lease: Option<PathBuf>,
 }
 
 impl WorkerConfig {

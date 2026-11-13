@@ -43,6 +43,10 @@ pub mod code {
     pub const AGENT_PROFILE_UNKNOWN: &str = "AGENT_PROFILE_UNKNOWN";
     pub const AGENT_REF_MISSING: &str = "AGENT_REF_MISSING";
     pub const AGENT_UNSUPPORTED: &str = "AGENT_UNSUPPORTED";
+    /// GA 池子里一个名额都没有（都在跑，或都在冷却）。
+    pub const GA_CAPACITY: &str = "GA_CAPACITY";
+    /// GA 的能力不满足这件任务（读图 / 上下文 / 输出 / effort）。
+    pub const CAPABILITY_MISS: &str = "CAPABILITY_MISS";
 }
 
 /// 规格错误：任务书、启动配置或 Agent 定义不合法。

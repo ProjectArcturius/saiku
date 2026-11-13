@@ -309,15 +309,30 @@ impl ResolvedRoute {
             display_name,
             key_env: self.key_env.clone(),
             key_source,
+            auth_id: None,
         })
     }
 }
 
 /// 按物化后的 `key_source`（`auth` / `env:X` / `file:P`）取密钥。运行时启动前调用。
+///
+/// `auth` 这一档取 [`crate::config::RouteSpec::auth_id`] 指向的条目；缺席时退回 provider id ——
+/// 单账户的老配置因此不用改。GA 靠这个字段让三个账户共用同一个 provider 块。
 pub fn read_key_from_spec(spec: &crate::config::RouteSpec, auth_path: &Path) -> SpecResult<String> {
-    let source = if spec.key_source == "auth" {
-        KeySource::AuthStore
-    } else if let Some(var) = spec.key_source.strip_prefix("env:") {
+    if spec.key_source == "auth" {
+        let id = spec.auth_id.as_deref().unwrap_or(&spec.provider_id);
+        let store = AuthStore::load(auth_path)?;
+        return store.key(id).filter(|k| !k.trim().is_empty()).ok_or_else(|| {
+            SpecError::new(
+                code::CONFIG_INVALID,
+                format!(
+                    "账户 `{id}` 没有可用密钥：{} 里没有这一项；用 `saiku auth set {id}` 写入",
+                    auth_path.display()
+                ),
+            )
+        });
+    }
+    let source = if let Some(var) = spec.key_source.strip_prefix("env:") {
         KeySource::Env(var.to_string())
     } else if let Some(path) = spec.key_source.strip_prefix("file:") {
         KeySource::File(PathBuf::from(path))
@@ -328,7 +343,7 @@ pub fn read_key_from_spec(spec: &crate::config::RouteSpec, auth_path: &Path) -> 
         ));
     };
     let route = ResolvedRoute {
-        provider_id: spec.provider_id.clone(),
+        provider_id: spec.auth_id.clone().unwrap_or_else(|| spec.provider_id.clone()),
         dsh_provider: String::new(),
         model: String::new(),
         adapter: DshAdapter::DeepSeekOfficial { base_url: None },

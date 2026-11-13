@@ -53,6 +53,12 @@ pub struct UserConfig {
     /// OpenCode 形状的供应商块。
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub provider: BTreeMap<String, ProviderConfig>,
+    /// 集团军：同一模型族的独立账户池。键是 GA id，见 [`crate::group_army`]。
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub group_army: BTreeMap<String, crate::group_army::GroupArmyConfig>,
+    /// 派工缺省：不说 `--ga` 时用哪个池、对模型有什么要求。
+    #[serde(default, skip_serializing_if = "Dispatch::is_empty")]
+    pub dispatch: Dispatch,
     #[serde(default)]
     pub runtime: RuntimeConfig,
     /// 任务状态目录；省略时 `<数据目录>/saiku/state`。
@@ -65,6 +71,24 @@ pub struct UserConfig {
     pub env: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worktree: Option<WorktreeConfig>,
+}
+
+/// 派工缺省（`saiku.json` 的 `dispatch` 块）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Dispatch {
+    /// 默认 GA。`--ga` 优先于它。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ga: Option<String>,
+    /// 默认能力要求（同 `--need`）：`vision` / `context=500000` / `output=100000`。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub needs: Vec<String>,
+}
+
+impl Dispatch {
+    pub fn is_empty(&self) -> bool {
+        self.ga.is_none() && self.needs.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -186,6 +210,7 @@ impl UserConfig {
         if config.worker.max_attempts == 0 {
             return Err(SpecError::new(code::CONFIG_INVALID, "worker.max_attempts 至少为 1"));
         }
+        config.validate_group_army()?;
         Ok(config)
     }
 
@@ -211,6 +236,45 @@ impl UserConfig {
             SpecError::new(code::CONFIG_UNREADABLE, format!("{} —— {e}", path.display()))
         })?;
         Ok((Self::parse(&raw, &path)?, path))
+    }
+
+    /// GA 的静态校验：池子非空、账户不重名、provider 能解析、`dispatch.ga` 指向存在的池。
+    fn validate_group_army(&self) -> SpecResult<()> {
+        use std::collections::BTreeSet;
+        for (id, ga) in &self.group_army {
+            if ga.accounts.is_empty() {
+                return Err(SpecError::new(
+                    code::CONFIG_INVALID,
+                    format!("group_army.{id}.accounts 是空的；一个池至少要有一个账户"),
+                ));
+            }
+            let mut seen = BTreeSet::new();
+            for account in &ga.accounts {
+                if !seen.insert(account.id()) {
+                    return Err(SpecError::new(
+                        code::CONFIG_INVALID,
+                        format!("group_army.{id} 里账户 `{}` 写了两次", account.id()),
+                    ));
+                }
+            }
+            let model = format!("{}/{}", ga.provider, ga.model);
+            crate::provider::resolve(&model, &self.provider, "validate").map_err(|_| {
+                SpecError::new(
+                    code::CONFIG_INVALID,
+                    format!("group_army.{id} 指向 `{model}`，但 provider 里没有 `{}`（也不是内置的）", ga.provider),
+                )
+            })?;
+        }
+        if let Some(ga) = &self.dispatch.ga {
+            if !self.group_army.contains_key(ga) {
+                return Err(SpecError::new(
+                    code::CONFIG_INVALID,
+                    format!("dispatch.ga 指向 `{ga}`，但 group_army 里没有这个池"),
+                ));
+            }
+        }
+        crate::group_army::Needs::parse(&self.dispatch.needs)?;
+        Ok(())
     }
 
     pub fn dsh_version(&self) -> String {

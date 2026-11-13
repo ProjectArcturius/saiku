@@ -18,6 +18,7 @@ use saiku_core::config::{
     AgentSources, Authorization, Liveness, ModelRoute, RuntimeSpec, Timeouts, WorkerConfig,
 };
 use saiku_core::error::{code, SpecError};
+use saiku_core::group_army::{self, Needs};
 use saiku_core::provider::{self, AuthStore};
 use saiku_core::result::{TaskResult, TaskStatus, Usage};
 use saiku_core::task::{Acceptance, TaskSpec};
@@ -55,6 +56,7 @@ pub async fn dispatch(argv: &[String]) -> i32 {
         "cancel" => cmd_cancel(&argv[1..]).await,
         "usage" => cmd_usage(&argv[1..]),
         "auth" => cmd_auth(&argv[1..]),
+        "ga" => cmd_ga(&argv[1..]),
         "runtime" => cmd_runtime(&argv[1..]),
         "config" => cmd_config(&argv[1..]),
         "serve" => crate::serve::cmd_serve(&argv[1..]).await,
@@ -176,7 +178,7 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
         argv,
         &["--config", "--workspace", "--id", "--accept", "--preamble", "--worktree", "--git-base", "--prompt",
           "--model", "--timeout", "--agent", "--state-root", "--by", "--format", "--permission",
-          "--effort"],
+          "--effort", "--ga", "--need"],
         &["--detach", "--rerun"],
     )?;
     // TUI 粘贴可能超过 Windows 的命令行长度，也可能恰好是文件名。
@@ -199,6 +201,29 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
     }
     let (cfg, cfg_path) = UserConfig::locate_and_load(flags.one("--config").map(Path::new))?;
     let root = flags.one("--state-root").map(PathBuf::from).unwrap_or_else(|| cfg.state_root());
+
+    // ── 集团军 ────────────────────────────────────────────────────────────
+    // `--ga` 优先于配置里的 `dispatch.ga`；都没有就是单账户老路径（用 cfg.model）。
+    // 能力要求合并两处：配置里的默认 needs 与本条命令的 --need。
+    let ga_id = flags.one("--ga").map(str::to_string).or_else(|| cfg.dispatch.ga.clone());
+    let needs = Needs::parse(
+        &cfg.dispatch.needs.iter().cloned().chain(flags.all("--need")).collect::<Vec<_>>(),
+    )?;
+    if let Some(id) = &ga_id {
+        if !cfg.group_army.contains_key(id) {
+            return Err(SpecError::new(
+                code::CONFIG_INVALID,
+                format!(
+                    "没有 GA `{id}`：saiku.json 的 group_army 里有 {}",
+                    if cfg.group_army.is_empty() {
+                        "（空）".to_string()
+                    } else {
+                        cfg.group_army.keys().cloned().collect::<Vec<_>>().join(" / ")
+                    }
+                ),
+            ));
+        }
+    }
 
     // ── 一般模式 vs 工人模式 ───────────────────────────────────────────────
     //
@@ -335,6 +360,8 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
     #[cfg(not(feature = "test-runtime"))]
     let fixture_scenario: Option<String> = None;
 
+    // GA 取号的结果：ga id、账户 id、租约目录。三者在配置物化时一起落盘。
+    let mut ga_pick: Option<(String, String, PathBuf)> = None;
     let (runtime_spec, model_route, model_label) = match fixture_scenario {
         // 假内核不碰模型，路由与密钥一律不需要。
         Some(scenario) => (
@@ -343,9 +370,40 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
             "（假内核）".to_string(),
         ),
         None => {
-            let model = flags.one("--model").unwrap_or(&cfg.model).to_string();
-            let route = provider::resolve(&model, &cfg.provider, &task_id)?;
-            let route_spec = route.to_spec()?;
+            // 先取号再解析路由：账户决定用哪把钥匙，而钥匙在 `route_spec` 里。
+            let (model, route_spec) = match &ga_id {
+                Some(id) => {
+                    let ga = cfg.group_army.get(id).expect("调用前已校验 GA 存在");
+                    let acquired = group_army::acquire(id, ga, &root, &needs, &task_id)?;
+                    let model = format!("{}/{}", ga.provider, ga.model);
+                    let mut spec = provider::resolve(&model, &cfg.provider, &task_id)?.to_spec()?;
+                    // 池子里的账户只存在 auth.json：`inf-1` / `inf-2` / `inf-3` 各一条。
+                    // provider 块里的 apiKey 写法（env/file）在 GA 路径下不参与取钥匙。
+                    spec.auth_id = Some(acquired.account.clone());
+                    spec.key_source = "auth".into();
+                    eprintln!(
+                        "saiku: GA `{id}` 取号 → {}（同池 {}）",
+                        acquired.account,
+                        acquired
+                            .snapshot
+                            .iter()
+                            .map(|s| format!("{}={}/{}", s.id, s.busy, s.limit))
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    );
+                    ga_pick = Some((id.clone(), acquired.account, acquired.lease.hand_off()));
+                    (model, spec)
+                }
+                None => {
+                    let model = flags.one("--model").unwrap_or(&cfg.model).to_string();
+                    let spec = provider::resolve(&model, &cfg.provider, &task_id)?.to_spec()?;
+                    (model, spec)
+                }
+            };
+            // `route_spec` 会被移进 DshSdk，先把这两项取出来给 ModelRoute。
+            let served_provider = route_spec.provider_id.clone();
+            let served_model =
+                route_spec.models.iter().map(|m| m.id.clone()).next().unwrap_or_default();
             let layout = RuntimeLayout::new(cfg.runtime_dir(), cfg.dsh_version());
             layout.check().map_err(|m| SpecError::new(code::RUNTIME_ENTRY_MISSING, m))?;
             // 路由只解析一次：启动配置里写一份，派工失败时写进状态面一份，两边逐字相同。
@@ -360,8 +418,12 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
                 preamble,
             };
             let route = Some(ModelRoute {
-                provider: route.dsh_provider.clone(),
-                model: route.model.clone(),
+                provider: served_provider,
+                model: if served_model.is_empty() {
+                    model.split_once('/').map(|(_, m)| m.to_string()).unwrap_or_else(|| model.clone())
+                } else {
+                    served_model
+                },
                 reasoning_effort: effort.clone(),
             });
             (spec, route, model)
@@ -404,6 +466,9 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
             max_attempts: cfg.worker.max_attempts,
         },
         git_base,
+        ga: ga_pick.as_ref().map(|(ga, _, _)| ga.clone()),
+        account: ga_pick.as_ref().map(|(_, account, _)| account.clone()),
+        capacity_lease: ga_pick.as_ref().map(|(_, _, lease)| lease.clone()),
     };
 
     let mut acceptance: Vec<Acceptance> = json_task.as_ref().map(|t| t.acceptance.clone()).unwrap_or_default();
@@ -454,7 +519,15 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
     let mut task_value = serde_json::to_value(&task).unwrap_or_default();
     task_value["workspace"] = serde_json::json!(workspace.display().to_string());
     write_json(&task_path, &task_value)?;
-    eprintln!("saiku: 配置 {} · 模型 {model_label} · workspace {}", cfg_path.display(), workspace.display());
+    eprintln!(
+        "saiku: 配置 {} · 模型 {model_label}{} · workspace {}",
+        cfg_path.display(),
+        ga_pick
+            .as_ref()
+            .map(|(ga, account, _)| format!(" · GA {ga}/{account}"))
+            .unwrap_or_default(),
+        workspace.display()
+    );
 
     let cancel = dir.join("cancel.json");
     if flags.has("--detach") {
@@ -1180,6 +1253,108 @@ fn reap_orphan(id: &str, st: &StatusFile) -> i32 {
 }
 
 // ── auth / runtime / config ────────────────────────────────────────────
+
+// ── ga：集团军 ─────────────────────────────────────────────────────────
+
+/// `saiku ga ls [--json]` —— 每个池子的账户、限额、此刻占用与冷却。
+///
+/// 这是夜班唯一需要的「容量视图」：不看日志也能回答「为什么派不出去」。
+fn cmd_ga(argv: &[String]) -> CmdResult {
+    let flags = Flags::parse(argv, &["--config", "--state-root"], &["--json"])?;
+    let sub = flags.positional.first().map(String::as_str).unwrap_or("ls");
+    if sub != "ls" && sub != "status" {
+        return Err(SpecError::new(code::CONFIG_INVALID, "用法：saiku ga ls [--json]"));
+    }
+    let (cfg, _) = UserConfig::locate_and_load(flags.one("--config").map(Path::new))?;
+    let root = flags.one("--state-root").map(PathBuf::from).unwrap_or_else(|| cfg.state_root());
+    let now = status::now_ms();
+
+    if flags.has("--json") {
+        let mut out = serde_json::Map::new();
+        for (id, ga) in &cfg.group_army {
+            let accounts: Vec<serde_json::Value> = group_army::inspect(id, ga, &root, now)
+                .into_iter()
+                .map(|state| {
+                    serde_json::json!({
+                        "id": state.id,
+                        "busy": state.busy,
+                        "limit": state.limit,
+                        "free": state.free(),
+                        "cooldown_until": state.cooldown_until,
+                        "cooldown_reason": state.cooldown_reason,
+                    })
+                })
+                .collect();
+            out.insert(
+                id.clone(),
+                serde_json::json!({
+                    "provider": ga.provider,
+                    "model": ga.model,
+                    "default": ga.default,
+                    "capabilities": {
+                        "context": ga.capabilities.context,
+                        "max_output": ga.capabilities.max_output,
+                        "vision": ga.capabilities.vision,
+                        "effort": ga.capabilities.effort,
+                    },
+                    "accounts": accounts,
+                }),
+            );
+        }
+        println!("{}", serde_json::to_string_pretty(&serde_json::Value::Object(out)).unwrap_or_default());
+        return Ok(0);
+    }
+
+    if cfg.group_army.is_empty() {
+        println!("没有配置 group_army。在 saiku.json 里写一个池，或 `saiku config init` 后参照示例加。");
+        return Ok(0);
+    }
+    for (id, ga) in &cfg.group_army {
+        let cap = &ga.capabilities;
+        let mut traits = Vec::new();
+        if let Some(context) = cap.context {
+            traits.push(format!("ctx {}", human_tokens(context)));
+        }
+        if let Some(max_output) = cap.max_output {
+            traits.push(format!("out {}", human_tokens(max_output)));
+        }
+        if cap.vision {
+            traits.push("vision".into());
+        }
+        if !cap.effort.is_empty() {
+            traits.push(format!("effort[{}]", cap.effort.join(",")));
+        }
+        println!(
+            "GA {id}{}  {}/{}  {}",
+            if ga.default { " *" } else { "" },
+            ga.provider,
+            ga.model,
+            traits.join(" · ")
+        );
+        for state in group_army::inspect(id, ga, &root, now) {
+            let cooldown = match state.cooldown_until {
+                Some(until) => format!(
+                    "  冷却 {}s：{}",
+                    until.saturating_sub(now) / 1000,
+                    state.cooldown_reason.clone().unwrap_or_default()
+                ),
+                None => String::new(),
+            };
+            println!("  {:<12} {:>2}/{:<2} 空闲 {}{}", state.id, state.busy, state.limit, state.free(), cooldown);
+        }
+    }
+    Ok(0)
+}
+
+fn human_tokens(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.0}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.0}K", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
+    }
+}
 
 fn cmd_auth(argv: &[String]) -> CmdResult {
     let path = userconfig::auth_path();
