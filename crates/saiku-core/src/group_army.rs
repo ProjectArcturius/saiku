@@ -324,6 +324,8 @@ pub struct ArmySummary {
     pub id: String,
     pub provider: String,
     pub model: String,
+    /// 能力：上下文、最大输出、多模态、effort 档。界面上用来回答「这个池能不能读图」。
+    pub capabilities: Capabilities,
     pub accounts: Vec<ArmyAccount>,
 }
 
@@ -341,6 +343,7 @@ pub fn summaries(config: &BTreeMap<String, GroupArmyConfig>) -> Vec<ArmySummary>
             id: id.clone(),
             provider: ga.provider.clone(),
             model: ga.model.clone(),
+            capabilities: ga.capabilities.clone(),
             accounts: ga
                 .accounts
                 .iter()

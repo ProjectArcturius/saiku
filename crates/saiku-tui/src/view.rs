@@ -1193,7 +1193,11 @@ fn popup(frame: &mut Frame, app: &App, dialog: &Dialog, area: Rect, t: &Theme) {
         Dialog::Runs => app
             .filtered_runs()
             .iter()
-            .map(|r| (format!("{} · {} · {}", r.title, r.state, r.health), true))
+            .map(|r| {
+                // 用了哪个账户：同一件活重派到别的 key 上时，这一列是唯一线索。
+                let account = r.account.as_deref().map(|a| format!(" · {a}")).unwrap_or_default();
+                (format!("{} · {} · {}{account}", r.title, r.state, r.health), true)
+            })
             .collect(),
         Dialog::Subagents => app
             .subagent_rows()
@@ -1923,6 +1927,17 @@ fn composer_placeholder(app: &App) -> &'static str {
         // 键位提示放在占位符里（OpenCode 的 `Ask anything...` 那个位置）—— 页脚不再挂说明书，
         // 但「怎么发送」必须有地方说（2026-10-20 的 F6 教训）。
         "输入消息，Enter 发送，Shift+Enter 换行"
+    }
+}
+
+/// 大数缩写：`1_000_000` → `1M`。给能力标签用（`ctx 1M` 比 `ctx 1000000` 好读）。
+pub(crate) fn human_tokens(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.0}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.0}K", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
     }
 }
 

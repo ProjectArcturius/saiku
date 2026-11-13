@@ -378,3 +378,24 @@ pub fn run(boot: Boot, requests: Sender<Request>, updates: Receiver<Update>) -> 
     }
     result
 }
+
+#[cfg(test)]
+mod contract_boundary {
+    /// 前端只依赖 `saiku-core` 的会话契约，**不依赖 `saiku-dsh`**。
+    ///
+    /// 这条不是洁癖：GUI 将来经 IPC 连同一个后端，如果 TUI 直接摸 DSH 的 Remote，
+    /// 换内核或换 GUI 时就要改两份前端。最近一次实现 `@` 引用时，语法规则是从内核文档
+    /// 抄进 `saiku-core` 的类型与 `autocomplete` 的，而不是在 TUI 里 import 内核代码。
+    #[test]
+    fn the_tui_does_not_link_the_kernel_adapter() {
+        let manifest = include_str!("../Cargo.toml");
+        assert!(
+            !manifest.contains("saiku-dsh"),
+            "TUI 不应依赖 saiku-dsh：内核词汇必须留在适配层，前端只吃 saiku-core 的契约"
+        );
+        assert!(
+            !manifest.contains("saiku-cli"),
+            "TUI 不应依赖 CLI：它是被 CLI 启动的呈现层，反向依赖会成环"
+        );
+    }
+}

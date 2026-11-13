@@ -960,7 +960,27 @@ impl App {
                     let now = crate::view::now_ms();
                     let mut lines = Vec::new();
                     for army in &self.boot.armies {
-                        lines.push(format!("{}  {}/{}", army.id, army.provider, army.model));
+                        // 能力标签：多模态是真实约束（读图任务进不了不支持读图的池），
+                        // 所以它必须和「空闲几个」出现在同一屏。
+                        let caps = &army.capabilities;
+                        let mut tags: Vec<String> = Vec::new();
+                        if let Some(ctx) = caps.context {
+                            tags.push(format!("ctx {}", crate::view::human_tokens(ctx)));
+                        }
+                        if let Some(out) = caps.max_output {
+                            tags.push(format!("out {}", crate::view::human_tokens(out)));
+                        }
+                        if caps.vision {
+                            tags.push("vision".into());
+                        }
+                        if !caps.effort.is_empty() {
+                            tags.push(format!("effort[{}]", caps.effort.join(",")));
+                        }
+                        lines.push(if tags.is_empty() {
+                            format!("{}  {}/{}", army.id, army.provider, army.model)
+                        } else {
+                            format!("{}  {}/{}  {}", army.id, army.provider, army.model, tags.join(" · "))
+                        });
                         for account in &army.accounts {
                             let state = saiku_core::group_army::account_state(
                                 &self.boot.state_root,
@@ -4126,6 +4146,12 @@ mod tests {
                 id: "inf-ds".into(),
                 provider: "inferknock".into(),
                 model: "deepseek-v4.1-flash".into(),
+                capabilities: saiku_core::group_army::Capabilities {
+                    context: Some(1_000_000),
+                    max_output: Some(384_000),
+                    vision: true,
+                    effort: Vec::new(),
+                },
                 accounts: vec![
                     ArmyAccount { id: "inf-1".into(), concurrency: 3 },
                     ArmyAccount { id: "inf-2".into(), concurrency: 3 },
@@ -4141,6 +4167,7 @@ mod tests {
         assert!(text.contains("inf-ds"), "{text}");
         assert!(text.contains("1/3"), "inf-1 应显示在跑 1 个：{text}");
         assert!(text.contains("冷却"), "inf-2 应显示冷却：{text}");
+        assert!(text.contains("vision") && text.contains("ctx 1M"), "能力标签要同屏：{text}");
     }
 
     /// `/ga` 记住默认池子，`/dispatch` 不带 `--ga` 时用它；`/ga off` 清掉。
@@ -4151,6 +4178,7 @@ mod tests {
             id: id.into(),
             provider: "p".into(),
             model: "m".into(),
+            capabilities: Default::default(),
             accounts: Vec::new(),
         };
         let boot = Boot { armies: vec![army("inf-ds"), army("other")], ..boot(None, PathBuf::from("unused.json")) };
@@ -4179,6 +4207,7 @@ mod tests {
                 id: "inf-ds".into(),
                 provider: "p".into(),
                 model: "m".into(),
+                capabilities: Default::default(),
                 accounts: Vec::new(),
             }],
             ..boot(None, PathBuf::from("unused.json"))

@@ -34,7 +34,7 @@
 | 审批（confirm） | `approval`、`user-approval`、`permission` | 有（`/approvals`、confirm 档） | 无（headless 拒绝 confirm） | F5 | 无审批通道时 confirm 档拒绝启动（已有） |
 | 浏览器/网络工具 | `tool-web`、`web-deepseek-api` | 无（内核工具直接可见） | 半（`--permission` 控制） | F6 | — |
 | 模型目录与切换 | `model/selection` | 有（模型对话框） | 有（`--model`） | — | — |
-| 供应商池（GA） | Saiku 自有 | 有（`/ga` 默认池、`/pools` 容量与冷却、`/dispatch` 派出、`/runs` 详情看池/账户） | 有（`--ga`、`ga ls`） | F6 | 交互会话不经过 GA；成本只有 token，没有费用换算 |
+| 供应商池（GA） | Saiku 自有 | 有（`/ga` 默认池、`/pools` 容量/冷却/能力标签、`/dispatch` 派出、`/runs` 详情与账户列） | 有（`--ga`、`ga ls`） | F6 | 交互会话不经过 GA；成本只有 token，没有费用换算 |
 | 用量 / 成本 | `assistant/message.usage` | 有（`/usage`） | 有（`usage`） | — | 无费用换算（只有 token） |
 | 会话压缩 | `command-compact`、`compaction-*` | 无 | 自动 | — | 无手动入口 |
 | 遥测 / 会话日志上传 | `session-log-deepseek` | — | 已显式关闭 | — | 开关在 patch 里，不在界面 |
@@ -51,6 +51,12 @@
 
 补充（2026-11-13 本轮）：`/dispatch` 让「从 TUI 把一件长活交给池子」成立；
 `/night` 让「昨晚怎么样」不必离开 TUI。两者都只是读/转发，不新增内核能力。
+
+## 契约边界（已钉住）
+
+TUI 只依赖 `saiku-core` 的会话契约（`service::Command` / `Event`），**不链接 `saiku-dsh`**，
+也不依赖 `saiku-cli`。这不是洁癖：GUI 将来经 IPC 连同一个后端，前端若直接摸 DSH Remote，
+换内核或换 GUI 就要改两份。`saiku-tui` 里有一条测试读自己的 `Cargo.toml` 钉住这条边界。
 
 ## 不做的
 
