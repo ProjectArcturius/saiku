@@ -224,6 +224,15 @@ pub async fn answer_question(
     .map(|_| ())
 }
 
+/// 审批的应答体。内核只认 `allowed-once` / `rejected`，其它一律是内核自己的判断。
+fn approval_outcome(answer: Answer) -> Value {
+    match answer {
+        Answer::Next => json!({ "kind": "next" }),
+        Answer::AllowOnce => json!({ "kind": "result", "value": "allowed-once" }),
+        Answer::Reject => json!({ "kind": "result", "value": "rejected" }),
+    }
+}
+
 /// 提问的应答体：`{"kind":"result","value":{"answers":[…]}}`。
 ///
 /// `selected` 放**选项 label**（内核按 label 对，不按序号）；跳过一题 = 空数组。
@@ -251,11 +260,7 @@ pub async fn answer(
     request_id: &str,
     answer: Answer,
 ) -> Result<(), RemoteError> {
-    let outcome = match answer {
-        Answer::Next => json!({ "kind": "next" }),
-        Answer::AllowOnce => json!({ "kind": "result", "value": "allowed-once" }),
-        Answer::Reject => json!({ "kind": "result", "value": "rejected" }),
-    };
+    let outcome = approval_outcome(answer);
     // **没有额外的 `args` 包装**：`rpc.call` 已经把它放进 `payload.args`，
     // 网关那边 `parseRemoteEventResultPayload` 只认 `{clientId, eventId, outcome}` 三个键。
     // 多包一层会得到 `api gateway: invalid Remote event result`（2026-11-13 实测）。
@@ -384,6 +389,19 @@ mod tests {
         assert_eq!(answers[0]["selected"][0], "A");
         assert!(answers[0].get("custom").is_none(), "空 custom 不该发：{answers}");
         assert_eq!(answers[1]["custom"], "手写");
+    }
+
+    #[test]
+    fn approval_outcomes_match_the_kernel_vocabulary() {
+        assert_eq!(approval_outcome(Answer::Next), json!({ "kind": "next" }));
+        assert_eq!(
+            approval_outcome(Answer::AllowOnce),
+            json!({ "kind": "result", "value": "allowed-once" })
+        );
+        assert_eq!(
+            approval_outcome(Answer::Reject),
+            json!({ "kind": "result", "value": "rejected" })
+        );
     }
 
 }

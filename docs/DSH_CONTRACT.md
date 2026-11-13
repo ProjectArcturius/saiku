@@ -84,6 +84,18 @@ saiku dsh doctor --version 0.2.2-rc.2          # 115 行 / 113 包，17 个必�
 
 结论：F4/F5 的进度只取决于 Saiku 侧的 UI 与事件映射，**不取决于升级**。
 
+### 审批端到端通过，并收窄了「什么时候会弹审批」（2026-11-13）
+
+`remote_live_an_approval_lets_the_tool_run`：真内核 + 脚本化模型，模型用
+`write` + `sandbox_permissions: danger-full-access` 请求提权 → 内核发
+`approval/request` → Saiku 答 `allowed-once` → 写入**真的**发生在 workspace 外面。
+
+同一轮还测出一个容易误解的事实：**`confirm` 档下 workspace 内的普通写入不弹审批**，
+命令直接就跑了（第一版用例就是这么写的，文件出现了却没等到瀑布）。审批只在工具
+**要求超出当前沙箱**时出现 —— 这点写进了矩阵，别再把「没弹审批」当成坏。
+
+因此空跑审批的路径也收窄了：想验审批，脚本里必须**显式提权**。
+
 ### `$events/result` 只有一个 `args` 层（2026-11-13，端到端发现）
 
 写 F5 的端到端用例时撞到的：`events::answer` 把结果发成

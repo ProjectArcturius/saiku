@@ -570,3 +570,147 @@ async fn remote_live_a_question_is_answered_through_the_waterfall() {
 
     shutdown_and_confirm(&mut kernel, "提问往返之后").await;
 }
+
+/// 审批的**端到端**：真内核 + 脚本化模型，模型要跑命令 → 内核发审批 → 我们允许 → 命令真的执行。
+///
+/// 这条用例存在的理由很具体：`$events/result` 曾经多包了一层 `args`，于是所有审批答案都被
+/// 网关判成 `invalid Remote event result`，而之前的审批测试只到「弹层显示/键位」为止，
+/// 没有任何一条真把答案发回去（2026-11-13）。这里补上那一步。
+#[cfg(feature = "test-runtime")]
+#[tokio::test]
+#[ignore = "起真内核 + 脚本化模型；需要本机已安装 DSH 运行时"]
+async fn remote_live_an_approval_lets_the_tool_run() {
+    use crate::fake_provider::{Provider, Script};
+    use crate::remote::launch::policy_for;
+    use crate::runtime::{render_patch_with_routes, PatchInput};
+    use saiku_core::authz::Permission;
+    use saiku_core::config::{RouteModel, RouteSpec};
+    use saiku_core::conversation::{ApprovalOutcome, ModelChoice};
+    use saiku_core::mode::{AgentId, Mode};
+
+    let Ok(layout) = runtime_layout() else {
+        eprintln!("跳过：本机没有要的运行时");
+        return;
+    };
+    let Some(node) = find_node(&layout.dir) else {
+        eprintln!("跳过：找不到 node");
+        return;
+    };
+    let dir = tempfile::tempdir().expect("临时目录");
+    // 提权请求才会走审批：`confirm` 档下 `sandbox_permissions` + `justification` 是那把钥匙。
+    // 普通的 workspace 内写不需要批准（实测：不加提权的命令直接就跑完了）。
+    let outside = dir.path().join("outside.txt");
+    let script_json = format!(
+        r#"{{"responses":[
+            {{"blocks":[{{"tool":"write","arguments":{{
+                "file_path":"{path}",
+                "content":"approved",
+                "sandbox_permissions":"danger-full-access",
+                "justification":"审批端到端：请求写到 workspace 外面"
+            }}}}]}}
+        ],"default":{{"blocks":[{{"text":"完成"}}]}}}}"#,
+        path = outside.display().to_string().replace('\\', "/")
+    );
+    let script = Script::parse(&script_json).expect("脚本该能解析");
+    let provider = Provider::start(script, dir.path().join("provider.jsonl")).expect("起假端点");
+
+    let workspace = dir.path().join("ws");
+    std::fs::create_dir_all(&workspace).expect("建 workspace");
+    let spec = RouteSpec {
+        provider_id: "fake-endpoint".into(),
+        adapter: "pi-ai".into(),
+        api: Some("anthropic-messages".into()),
+        base_url: Some(provider.url()),
+        headers: Default::default(),
+        models: vec![RouteModel { id: "fake-model".into(), name: Some("Fake".into()), context_window: Some(100_000) }],
+        display_name: None,
+        key_env: "DSH_TEST_KEY".into(),
+        key_source: "env:DSH_TEST_KEY".into(),
+        auth_id: None,
+    };
+    // `confirm` 档：审批策略是 ask，工具要先经人允许。
+    let policy = policy_for(Permission::Confirm, AgentId::Build, Mode::Build, &workspace);
+    let guard = policy.execution_guard(Permission::Confirm).expect("算 guard");
+    let patch = render_patch_with_routes(
+        &PatchInput {
+            route: &spec,
+            persona_suffix: "",
+            session_log_upload: false,
+            guard: &guard,
+            session_search: false,
+            blocking_tools: false,
+        },
+        &[],
+    );
+    let patch_path = dir.path().join("patch.json");
+    std::fs::write(&patch_path, patch).expect("写 patch");
+
+    let home = tempfile::tempdir().expect("建 DSH_HOME");
+    let mut options = WebKernelOptions::new(node, layout.entry(), home.path());
+    options.patch = Some(patch_path);
+    options.env.insert("DSH_TEST_KEY".into(), "test-key".into());
+    options.cwd = Some(workspace.clone());
+    options.startup_timeout = LIVE_STARTUP_TIMEOUT;
+    let mut kernel = WebKernel::start(options).await.expect("起 web 内核");
+
+    let client = SessionClient::connect(&kernel).await.expect("连内核");
+    let session = client.create(&workspace).await.expect("建会话");
+    client
+        .select_model(
+            &session,
+            &ModelChoice { provider: "fake-endpoint".into(), model: "fake-model".into(), effort: None },
+        )
+        .await
+        .expect("选模型");
+    let mut subscription = client.subscribe_events().await.expect("订阅事件");
+    client.prompt(&session, "写个文件").await.expect("发 prompt");
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    let mut approved = false;
+    while tokio::time::Instant::now() < deadline && !approved {
+        match tokio::time::timeout(Duration::from_secs(10), subscription.next()).await {
+            Ok(Forwarded::Approval(request)) => {
+                assert_eq!(request.tool_name, "write", "审批该点名触发提权的工具：{request:?}");
+                let rpc = RemoteRpc::for_kernel(&kernel).expect("建调用句柄");
+                crate::remote::events::answer(
+                    &rpc,
+                    subscription.client_id(),
+                    &request.request_id,
+                    crate::remote::events::Answer::AllowOnce,
+                )
+                .await
+                .expect("审批答案该送达（这条曾在网关被拒）");
+                approved = true;
+            }
+            Ok(_) => continue,
+            Err(_) => break,
+        }
+    }
+    if !approved {
+        let transcript = provider
+            .requests()
+            .iter()
+            .map(|request| crate::fake_provider::transcript(&request["body"]))
+            .collect::<Vec<_>>()
+            .join("\n---\n");
+        let files = std::fs::read_dir(&workspace)
+            .map(|entries| entries.flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect::<Vec<_>>())
+            .unwrap_or_default();
+        panic!("没等到审批瀑布；workspace={files:?}\n请求：{transcript}");
+    }
+
+    // 允许之后写入要真的发生（而且发生在 workspace 外面 —— 那正是提权的意义）。
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let target = outside.clone();
+    while tokio::time::Instant::now() < deadline && !target.exists() {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    assert_eq!(
+        std::fs::read_to_string(&target).unwrap_or_default().trim(),
+        "approved",
+        "审批通过了但写入没发生（或写错了文件）"
+    );
+
+    let _ = ApprovalOutcome::AllowOnce;
+    shutdown_and_confirm(&mut kernel, "审批往返之后").await;
+}
