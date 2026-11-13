@@ -1699,6 +1699,13 @@ fn help_popup(frame: &mut Frame, app: &App, area: Rect, t: &Theme) {
     // —— 帮助页自己先违反「全部绑定一眼看得全」就没意义了。
     let rect = dialog_rect_help(area);
     let inner = dialog_frame(frame, rect, "帮助", t);
+    // 帮助是唯一「行数接近屏幕」的页面：把标题下那行留白也拿来用。其它弹层留白是为了
+    // 呼吸，这里少一行就让一条绑定消失，取舍很明确。
+    let inner = Rect {
+        y: inner.y.saturating_sub(1),
+        height: inner.height + 1,
+        ..inner
+    };
     let mut lines: Vec<Line<'static>> = Vec::new();
     let mut category: Option<Category> = None;
     for row in app.help_rows() {
@@ -1875,7 +1882,7 @@ fn composer_placeholder(app: &App) -> &'static str {
     }
 }
 
-fn now_ms() -> u64 {
+pub(crate) fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -2438,6 +2445,7 @@ mod tests {
         App::new(
             Boot {
                 workspace: "C:/项目/saiku".into(),
+                state_root: "unused".into(),
                 model: Some("opencode-go/deepseek-v4.1-flash".into()),
                 effort: None,
                 config_error: None,
@@ -2858,6 +2866,12 @@ mod tests {
                 "help is missing {needle:?}"
             );
         }
+        // 「全部绑定一眼看得全」是帮助页的设计约定。新增条目后如果这里开始出现
+        // 「↓ 还有」，要么压缩归类，要么明确接受滚动并改掉这条断言 —— 别让它悄悄发生。
+        assert!(
+            !contains_wrapped(buffer, "↓ 还有"),
+            "帮助在默认尺寸下溢出了：新条目要挤进一屏，或改本断言说明接受滚动"
+        );
     }
 
     /// The completion list has to sit above the composer and name the command it will insert.

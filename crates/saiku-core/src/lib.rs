@@ -19,6 +19,7 @@ pub mod failure;
 pub mod goal;
 pub mod group_army;
 pub mod mode;
+pub mod night;
 pub mod paths;
 pub mod provider;
 pub mod result;

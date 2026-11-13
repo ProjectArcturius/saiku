@@ -31,8 +31,6 @@ use crate::status;
 
 const POLL: Duration = Duration::from_millis(1500);
 const HEARTBEAT_EVERY: Duration = Duration::from_secs(5);
-/// 心跳超过这么久没更新，`night status` 就报「控制器已停」。
-const RUNNER_STALE_MS: u64 = 60_000;
 
 // ── 计划 ───────────────────────────────────────────────────────────────
 
@@ -555,12 +553,12 @@ fn settle(
         }
         Verdict::Retry { code: why, message, provider_side } => {
             if attempt < plan.retry.attempts.max(1) {
-                if provider_side {
-                    if let (Some(ga), Some(account)) = (st.ga.clone().or(task.ga.clone()).or(plan.ga.clone()), st.account.clone()) {
-                        let seconds = cooldown_for(&why, plan.retry.cooldown_seconds);
-                        let _ = group_army::cooldown(&ga, &account, &ctx.state_root, seconds, &why);
-                        log.line(&format!("{id} 失败 {why}，账户 {ga}/{account} 冷却 {seconds}s"));
-                    }
+                if provider_side
+                    && let (Some(ga), Some(account)) = (st.ga.clone().or(task.ga.clone()).or(plan.ga.clone()), st.account.clone())
+                {
+                    let seconds = cooldown_for(&why, plan.retry.cooldown_seconds);
+                    let _ = group_army::cooldown(&ga, &account, &ctx.state_root, seconds, &why);
+                    log.line(&format!("{id} 失败 {why}，账户 {ga}/{account} 冷却 {seconds}s"));
                 }
                 st.state = "pending".into();
                 st.code = Some(why.clone());
@@ -698,49 +696,39 @@ fn cmd_status(argv: &[String]) -> Result<i32, SpecError> {
         .map(PathBuf::from)
         .or_else(|| flags.one("--state-dir").map(PathBuf::from))
         .ok_or_else(|| SpecError::new(code::CONFIG_INVALID, "用法：saiku night status <控制器目录>"))?;
-    let state: NightState = read_json(&dir.join("state.json")).ok_or_else(|| {
+    // 结论与判据都来自 `saiku_core::night`：TUI 的 `/night` 与这里读的是同一个函数，
+    // 两边各算一份的话，「控制器已停」的阈值迟早会分叉。
+    let now = status::now_ms();
+    let report = saiku_core::night::read_dir(&dir, now).ok_or_else(|| {
         SpecError::new(code::CONFIG_INVALID, format!("{} 里没有 night 的运行记录", dir.display()))
     })?;
-    let beat: Option<Heartbeat> = read_json(&dir.join("heartbeat.json"));
-    let now = status::now_ms();
-    let age = beat.as_ref().map(|b| now.saturating_sub(b.at)).unwrap_or(u64::MAX);
     if flags.has("--json") {
+        let state: Option<NightState> = read_json(&dir.join("state.json"));
         let body = serde_json::json!({
-            "run_id": state.run_id,
-            "tasks": state.tasks,
-            "heartbeat_age_ms": if age == u64::MAX { None } else { Some(age) },
-            "runner_alive": age < RUNNER_STALE_MS,
+            "run_id": report.run_id,
+            "tasks": state.map(|s| s.tasks).unwrap_or_default(),
+            "counts": {
+                "done": report.counts.done,
+                "running": report.counts.running,
+                "pending": report.counts.pending,
+                "failed": report.counts.failed,
+                "stopped": report.counts.stopped,
+            },
+            "heartbeat_age_ms": report.heartbeat_age_ms,
+            "runner_alive": report.alive,
         });
         println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
     } else {
-        let done = count(&state, "done");
-        let running = count(&state, "running");
-        let pending = count(&state, "pending");
-        let failed = count(&state, "failed");
-        let alive = if age == u64::MAX {
-            "从未心跳".to_string()
-        } else if age < RUNNER_STALE_MS {
-            format!("心跳 {}s", age / 1000)
-        } else {
-            format!("控制器已停 {}s", age / 1000)
-        };
-        println!(
-            "night {}: {done} done · {running} running · {pending} pending · {failed} failed · {alive}",
-            state.run_id
-        );
-        if let Some((id, st)) = state.tasks.iter().find(|(_, s)| s.state == "failed" || s.state == "running") {
-            println!(
-                "  最近：{id} {} {}",
-                st.state,
-                st.code.clone().unwrap_or_default()
-            );
+        println!("{}", report.one_line());
+        if let Some(failure) = report.failures.first() {
+            println!("  失败：{} {}", failure.task, failure.code.clone().unwrap_or_default());
+        } else if let Some(running) = report.running.first() {
+            println!("  在跑：{running}");
         }
     }
-    let failed = count(&state, "failed");
-    let pending = count(&state, "pending") + count(&state, "running");
-    Ok(if failed > 0 {
+    Ok(if report.counts.failed > 0 {
         1
-    } else if pending > 0 {
+    } else if report.counts.pending + report.counts.running > 0 {
         10
     } else {
         0

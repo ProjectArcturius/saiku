@@ -143,6 +143,7 @@ pub async fn run() -> i32 {
     };
     let boot = Boot {
         workspace: workspace.clone(),
+        state_root: loaded.root.clone(),
         model: loaded.model,
         effort: loaded.effort,
         config_error: loaded.config_error,

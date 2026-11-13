@@ -260,6 +260,7 @@ mod tests {
         App::new(
             Boot {
                 workspace: ".".into(),
+                state_root: "unused".into(),
                 model: None,
                 effort: None,
                 config_error: None,

@@ -39,6 +39,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone)]
 pub struct Boot {
     pub workspace: PathBuf,
+    /// 状态根（`saiku.json` 的 `state_root` 或 `--state-root`）。`/runs` 与 `/night`
+    /// 都从这里读 —— 它们看的是同一份文件，不能各用各的默认值。
+    pub state_root: PathBuf,
     /// 配置里写的那条路由，作为启动时的当前模型。运行中由 `App::model` 覆盖。
     pub model: Option<String>,
     pub effort: Option<String>,

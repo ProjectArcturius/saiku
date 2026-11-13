@@ -947,6 +947,47 @@ impl App {
                     self.open_dialog(Dialog::Subagents);
                 }
             }
+            Action::Night => match saiku_core::night::latest(&self.boot.state_root, crate::view::now_ms()) {
+                Some(report) => {
+                    let mut lines = vec![report.one_line(), String::new()];
+                    if !report.failures.is_empty() {
+                        lines.push(format!("失败（{}）", report.failures.len()));
+                        for failure in report.failures.iter().take(30) {
+                            lines.push(format!(
+                                "  {}  {}{}",
+                                failure.task,
+                                failure.code.as_deref().unwrap_or("未给原因"),
+                                failure
+                                    .message
+                                    .as_deref()
+                                    .map(|m| format!(" — {}", first_line(m)))
+                                    .unwrap_or_default()
+                            ));
+                        }
+                        lines.push(String::new());
+                    }
+                    if !report.running.is_empty() {
+                        lines.push(format!("在跑：{}", report.running.join(" · ")));
+                        lines.push(String::new());
+                    }
+                    if !report.pending.is_empty() {
+                        lines.push(format!("排队（{}）：{}", report.pending.len(), report.pending.join(" · ")));
+                    }
+                    self.open_dialog(Dialog::Viewer(Viewer {
+                        title: "夜班".into(),
+                        lines,
+                        scroll: 0,
+                        filter: String::new(),
+                    }));
+                }
+                None => {
+                    self.notice = format!(
+                        "{} 下还没有夜班记录；先 
+  saiku night run <night.json>",
+                        self.boot.state_root.join("night").display()
+                    )
+                }
+            },
             Action::Goal => match arg {
                 Some(text) if !text.trim().is_empty() => {
                     // 与 headless 的 --goal 同一个出处：文案只有一份，见 `saiku_core::goal`。
@@ -2577,6 +2618,7 @@ mod tests {
     fn boot(model: Option<&str>, prefs: PathBuf) -> Boot {
         Boot {
             workspace: ".".into(),
+            state_root: "unused".into(),
             model: model.map(str::to_string),
             effort: None,
             config_error: None,
@@ -3128,6 +3170,7 @@ mod tests {
         App::new(
             Boot {
                 workspace: ".".into(),
+                state_root: "unused".into(),
                 model: None,
                 effort: None,
                 config_error: None,
@@ -3894,6 +3937,42 @@ mod tests {
         assert!(app.preferences.stash.is_empty());
         let saved = serde_json::to_string(&app.preferences).unwrap();
         assert!(saved.contains("\"stash\""), "暂存跟偏好一起落盘：{saved}");
+    }
+
+    /// `/night` 从状态根读最近一次夜班：完成/在跑/失败与心跳，一行是结论。
+    /// 这是「第二天早上知道昨晚怎么样」的最短路径，不必重新学一遍 `saiku night status`。
+    #[test]
+    fn night_command_reads_the_latest_controller_state() {
+        let dir = tempfile::tempdir().unwrap();
+        let night = dir.path().join("night").join("n1");
+        std::fs::create_dir_all(&night).unwrap();
+        std::fs::write(
+            night.join("state.json"),
+            r#"{"schema_version":1,"run_id":"n1","updated_at":0,"tasks":{
+                "w1":{"state":"done","attempts":1},
+                "w2":{"state":"failed","attempts":2,"code":"MODEL_ROUTE","message":"bad model"},
+                "w3":{"state":"running","attempts":1}}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            night.join("heartbeat.json"),
+            format!(r#"{{"at":{}}}"#, crate::view::now_ms()),
+        )
+        .unwrap();
+        let boot = Boot {
+            state_root: dir.path().to_path_buf(),
+            ..boot(None, PathBuf::from("unused.json"))
+        };
+        let mut app = App::new(boot, Preferences::default(), ModelPrefs::default());
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let _ = app.execute(Action::Night, None, &tx);
+        let Some(Dialog::Viewer(viewer)) = &app.dialog else {
+            panic!("应打开一个只读视图：{:?}", app.dialog);
+        };
+        assert!(viewer.lines[0].contains("night n1"), "{:?}", viewer.lines);
+        assert!(viewer.lines[0].contains("1 done"), "{:?}", viewer.lines);
+        assert!(viewer.lines.iter().any(|l| l.contains("MODEL_ROUTE")), "{:?}", viewer.lines);
+        assert!(viewer.lines.iter().any(|l| l.contains("在跑：w3")), "{:?}", viewer.lines);
     }
 
     /// 目标阶段的一次性结论：建立、完成、受阻各说一次；每轮都报会把页脚变成噪声。
