@@ -273,6 +273,27 @@ pub struct WorkerConfig {
     /// 已经占住的容量租约目录。监工负责刷心跳与释放；缺席 = 不占名额。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capacity_lease: Option<PathBuf>,
+    /// 目标模式：让模型把这件事建成 DSH 的会话目标，一轮一轮推到完成。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub goal: Option<GoalSpec>,
+}
+
+/// 目标模式（DSH 的 goal）。
+///
+/// DSH 自己在 `agent/status=idle` 且目标仍 active 时注入下一轮（`goal-round-driver`），
+/// 所以宿主**只需要别在第一次 turn/end 就收工** —— 以及别在目标没完成时把内核杀掉。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GoalSpec {
+    /// 目标原文。进用户消息，也进 `create_goal` 的 objective。
+    pub objective: String,
+    /// 最多推进几轮；DSH 侧同名字段，缺省由 DSH 决定（256），这里给一个夜班友好的上限。
+    #[serde(default = "default_goal_rounds")]
+    pub max_rounds: u32,
+}
+
+fn default_goal_rounds() -> u32 {
+    24
 }
 
 impl WorkerConfig {

@@ -205,10 +205,11 @@ impl Needs {
                 None => return Some("要求输出下限，但这个 GA 没声明 capabilities.max_output".into()),
             }
         }
-        if let Some(effort) = &self.effort {
-            if !capabilities.effort.is_empty() && !capabilities.effort.iter().any(|e| e == effort) {
-                return Some(format!("不支持 effort `{effort}`（支持：{}）", capabilities.effort.join(", ")));
-            }
+        if let Some(effort) = &self.effort
+            && !capabilities.effort.is_empty()
+            && !capabilities.effort.iter().any(|e| e == effort)
+        {
+            return Some(format!("不支持 effort `{effort}`（支持：{}）", capabilities.effort.join(", ")));
         }
         None
     }
@@ -337,9 +338,8 @@ pub fn acquire(
         if states[i].cooldown_until.is_some_and(|until| until > now) {
             continue;
         }
-        if states[i].free() == 0 {
-            continue;
-        }
+        // **即使看起来满了也要进去数一遍**：租约可能是死的（进程被强杀，心跳停了），
+        // 不进来就永远回收不了，那个账户从此少一个名额。
         let dir = root.join(&account);
         let Some(_guard) = lock_dir(&dir, now) else { continue };
         // 拿到锁之后重新数：等锁期间别人可能刚占满。
@@ -350,9 +350,13 @@ pub fn acquire(
             states[i].busy = busy;
             continue;
         }
-        let lease_dir = dir.join(format!("{}-{}", std::process::id(), now));
-        if std::fs::create_dir_all(&lease_dir).is_err() {
-            continue;
+        let lease_dir = unique_lease_dir(&dir, now);
+        // `create_dir` 而不是 `create_dir_all`：同名目录已经存在时必须失败，
+        // 否则两个租约会共用同一个目录、名额被数漏（实测过一次，第三件任务挤进了
+        // 「2/2」的账户）。
+        match std::fs::create_dir(&lease_dir) {
+            Ok(()) => {}
+            Err(_) => continue,
         }
         let host = host_name();
         let meta = Meta { run_id: run_id.to_string(), pid: std::process::id(), host, started_at: now };
@@ -448,19 +452,35 @@ fn lock_dir(dir: &Path, now: u64) -> Option<DirGuard> {
             }
             Err(_) => {
                 // 过期锁：直接拆。
-                if let Ok(meta) = std::fs::metadata(&lock) {
-                    if let Ok(modified) = meta.modified() {
-                        if now.saturating_sub(mtime_ms(modified)) > LOCK_STALE_MS {
-                            let _ = std::fs::remove_dir_all(&lock);
-                            continue;
-                        }
-                    }
+                if let Ok(meta) = std::fs::metadata(&lock)
+                    && let Ok(modified) = meta.modified()
+                    && now.saturating_sub(mtime_ms(modified)) > LOCK_STALE_MS
+                {
+                    let _ = std::fs::remove_dir_all(&lock);
+                    continue;
                 }
                 if now_ms() > deadline {
                     return None;
                 }
                 std::thread::sleep(std::time::Duration::from_millis(20));
             }
+        }
+    }
+}
+
+/// 租约目录名：pid + 纳秒 + 进程内序号。同毫秒内多次取号也不会撞名。
+fn unique_lease_dir(dir: &Path, now: u64) -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    loop {
+        let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+        let candidate = dir.join(format!("{}-{now}-{nanos}-{seq}", std::process::id()));
+        if !candidate.exists() {
+            return candidate;
         }
     }
 }

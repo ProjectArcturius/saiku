@@ -110,6 +110,19 @@ pub struct Projection {
     /// 被后来的 `turn/end` 覆盖掉的结束原因个数。续跑开的新会话也从第 1 轮数起，
     /// 会并进同一个轮次视图；调用方靠它判断「这一次运行结束了没有」。
     pub ends_overwritten: usize,
+    /// 目标（DSH 的 goal）的最新快照。`goal/change` 事件驱动。
+    pub goal: Option<GoalView>,
+}
+
+/// 一次 `goal/change` 之后的可见状态。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GoalView {
+    pub id: Option<String>,
+    pub objective: Option<String>,
+    /// `active` / `complete` / `blocked` / `cleared`。
+    pub phase: Option<String>,
+    pub rounds_started: u64,
+    pub blocked_reason: Option<String>,
 }
 
 impl Projection {
@@ -123,6 +136,15 @@ impl Projection {
 
     pub fn recorded(&self) -> &[Value] {
         &self.recorded
+    }
+
+    /// 目标此刻是不是还在推进。`None` = 这次运行里模型根本没建过目标。
+    pub fn goal_phase(&self) -> Option<&str> {
+        self.goal.as_ref().and_then(|g| g.phase.as_deref())
+    }
+
+    pub fn goal_active(&self) -> bool {
+        self.goal_phase() == Some("active")
     }
 
     /// 最后出现的轮次结束原因。收尾判定用这个，而不是「有没有收到过事件」——
@@ -177,6 +199,9 @@ impl Projection {
                 | "tool/call"
                 | "tool/result"
         );
+        if kind == "goal/change" {
+            self.apply_goal_change(event);
+        }
         if !recognized {
             // 内部簿记（permission/preset、sandbox/mode、request/context …）。
             // 画出来会让真正的正文被埋掉，所以只留档、不进对话。
@@ -355,6 +380,34 @@ impl Projection {
         }
     }
 
+    /// `goal/change`：`{ goal: {id, phase, objective, maxGoalRounds, blockedReason}, roundsStarted }`。
+    ///
+    /// 只认**最新一帧**：goal 的修订是单向的（create → active → complete/blocked），
+    /// 历史里没有需要回放的东西，宿主只关心「此刻还在不在推进」。
+    fn apply_goal_change(&mut self, event: &Value) {
+        let Some(goal) = event.get("goal") else { return };
+        let current = self.goal.get_or_insert_with(GoalView::default);
+        if let Some(id) = goal.get("id").and_then(|v| v.as_str()) {
+            current.id = Some(id.to_string());
+        }
+        if let Some(phase) = goal.get("phase").and_then(|v| v.as_str()) {
+            current.phase = Some(phase.to_string());
+        }
+        if let Some(objective) = goal.get("objective").and_then(|v| v.as_str()) {
+            current.objective = Some(objective.to_string());
+        }
+        if let Some(reason) = goal.get("blockedReason") {
+            current.blocked_reason = reason
+                .get("code")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .or_else(|| reason.as_str().map(str::to_string));
+        }
+        if let Some(rounds) = event.get("roundsStarted").and_then(|v| v.as_u64()) {
+            current.rounds_started = rounds;
+        }
+    }
+
     fn ensure_turn(&mut self, turn: u32) -> &mut TurnView {
         if let Some(idx) = self.turns.iter().position(|t| t.turn == turn) {
             return &mut self.turns[idx];
@@ -474,6 +527,35 @@ fn scan_failures(value: &Value, out: &mut Vec<ModelFailure>) {
     }
 }
 
+
+    #[test]
+    fn goal_change_tracks_phase_and_rounds() {
+        let mut p = Projection::new();
+        p.apply(&serde_json::json!({
+            "type": "goal/change",
+            "operation": "create",
+            "goal": { "id": "g1", "phase": "active", "objective": "把 Ether 的洞填上" },
+            "roundsStarted": 0
+        }));
+        assert!(p.goal_active(), "create 之后应是 active");
+        p.apply(&serde_json::json!({
+            "type": "goal/change",
+            "operation": "block",
+            "goal": { "id": "g1", "phase": "blocked", "blockedReason": { "code": "round-limit" } },
+            "roundsStarted": 3
+        }));
+        assert_eq!(p.goal_phase(), Some("blocked"));
+        let goal = p.goal.as_ref().unwrap();
+        assert_eq!(goal.blocked_reason.as_deref(), Some("round-limit"));
+        assert_eq!(goal.rounds_started, 3);
+        p.apply(&serde_json::json!({
+            "type": "goal/change",
+            "operation": "complete",
+            "goal": { "id": "g1", "phase": "complete" },
+            "roundsStarted": 4
+        }));
+        assert!(!p.goal_active());
+    }
 #[cfg(test)]
 mod tests {
     use super::*;

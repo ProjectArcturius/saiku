@@ -265,13 +265,13 @@ impl UserConfig {
                 )
             })?;
         }
-        if let Some(ga) = &self.dispatch.ga {
-            if !self.group_army.contains_key(ga) {
-                return Err(SpecError::new(
-                    code::CONFIG_INVALID,
-                    format!("dispatch.ga 指向 `{ga}`，但 group_army 里没有这个池"),
-                ));
-            }
+        if let Some(ga) = &self.dispatch.ga
+            && !self.group_army.contains_key(ga)
+        {
+            return Err(SpecError::new(
+                code::CONFIG_INVALID,
+                format!("dispatch.ga 指向 `{ga}`，但 group_army 里没有这个池"),
+            ));
         }
         crate::group_army::Needs::parse(&self.dispatch.needs)?;
         Ok(())

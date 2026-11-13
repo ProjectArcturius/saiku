@@ -427,6 +427,7 @@ async fn execute(prepared: Prepared) -> i32 {
             model: prepared.config.model.as_ref().map(|m| format!("{}/{}", m.provider, m.model)),
             ga: prepared.config.ga.clone(),
             account: prepared.config.account.clone(),
+            goal: None,
             assigned_by: prepared.assigned_by.clone(),
             title: prepared.title.clone(),
             started_at: started,
@@ -708,10 +709,12 @@ async fn run_attempt(
     let mut wait_error: Option<String> = None;
     let mut grace: Option<tokio::time::Instant> = None;
     // 本次运行开始前已有的结束原因：续跑时投影里还留着上一次的，判「这一次结束了没有」要排除它。
-    let ends_before = count_ends(projection);
+    let mut ends_before = count_ends(projection);
     // 轮询定时器必须**建在循环外面**：在 select 里 `sleep()` 每次迭代都会重建，
     // 而事件密集时每 25 ms 就来一条，那个 100 ms 的 sleep 永远走不完 ——
     // 取消文件于是永远读不到。踩过一次，症状是「取消请求发出去了，任务照跑」。
+    let goal_spec = prepared.config.goal.clone();
+    let mut goal_rounds: u32 = 0;
     let mut cancel_poll = tokio::time::interval(CANCEL_POLL);
     cancel_poll.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let mut heartbeat = tokio::time::interval(Duration::from_secs(prepared.config.liveness.heartbeat_seconds));
@@ -719,8 +722,26 @@ async fn run_attempt(
 
     let outcome = loop {
         let ended_now = count_ends(projection) > ends_before;
-        if wait_done && ended_now {
-            break RunOutcome::TurnEnded;
+        if ended_now {
+            // 目标模式：DSH 的 goal-round-driver 会在 idle 之后自己注入下一轮。
+            // 宿主在这里收工 = 把还在推进的目标连内核一起杀掉 —— 那正是旧版本
+            // 「夜深了任务莫名变成 completed」的那一类。
+            if goal_spec.is_some() && projection.goal_active() {
+                goal_rounds += 1;
+                ends_before = count_ends(projection);
+                let _ = sink.diagnostic(
+                    "info",
+                    Some("GOAL_ROUND"),
+                    &format!(
+                        "目标仍在推进（第 {goal_rounds} 轮结束，DSH 报 {} 轮）：继续等下一轮",
+                        projection.goal.as_ref().map(|g| g.rounds_started).unwrap_or(0)
+                    ),
+                );
+                continue;
+            }
+            if wait_done {
+                break RunOutcome::TurnEnded;
+            }
         }
         if let Some(limit) = grace {
             if tokio::time::Instant::now() >= limit && !ended_now {
@@ -737,7 +758,13 @@ async fn run_attempt(
                     wait_error = Some(e.to_string());
                 }
                 if count_ends(projection) <= ends_before {
-                    grace = Some(tokio::time::Instant::now() + TERMINAL_GRACE);
+                    // 目标 active 时 idle 可能只是轮间空隙，给宽一点；没有目标就守 3 秒。
+                    let wait = if projection.goal_active() {
+                        Duration::from_secs(120)
+                    } else {
+                        TERMINAL_GRACE
+                    };
+                    grace = Some(tokio::time::Instant::now() + wait);
                 }
             }
             item = inbound.recv() => {
@@ -758,6 +785,12 @@ async fn run_attempt(
             }
             _ = heartbeat.tick() => {
                 status.status.usage = projection.usage.clone();
+                status.status.goal = projection.goal.as_ref().map(|g| crate::status::GoalStatus {
+                    phase: g.phase.clone().unwrap_or_else(|| "active".into()),
+                    rounds: g.rounds_started,
+                    objective: g.objective.clone(),
+                    blocked_reason: g.blocked_reason.clone(),
+                });
                 if let Some(base) = &prepared.config.git_base {
                     status.status.counters.commits = git_commit_count(&prepared.plan.workspace, base);
                 }
@@ -916,6 +949,20 @@ fn conclude(
         RunOutcome::TurnEnded if exhausted == Some("TOOL_CALL_AS_TEXT") => {
             result.blocker("TOOL_CALL_AS_TEXT", "模型把工具调用当成正文吐出后收工，续跑次数已用尽");
             TaskStatus::Failed
+        }
+        // 目标的终态优先于 turn/end 的措辞：模型可能把 blocked 的那一轮说成 completed。
+        RunOutcome::TurnEnded if projection.goal_phase() == Some("blocked") => {
+            let reason = projection
+                .goal
+                .as_ref()
+                .and_then(|g| g.blocked_reason.clone())
+                .unwrap_or_else(|| "目标报告受阻".into());
+            result.blocker("GOAL_BLOCKED", format!("目标受阻：{reason}"));
+            TaskStatus::Blocked
+        }
+        RunOutcome::TurnEnded if projection.goal_active() => {
+            result.blocker("GOAL_UNFINISHED", "目标仍 active，但这次运行已到收尾条件（轮数或预算）");
+            TaskStatus::Blocked
         }
         RunOutcome::TurnEnded => match projection.last_end() {
             None => {

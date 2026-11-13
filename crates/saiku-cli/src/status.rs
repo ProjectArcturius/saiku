@@ -59,6 +59,20 @@ pub struct Notice {
     pub at: u64,
 }
 
+/// 目标此刻在哪一步（来自 `goal/change`）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoalStatus {
+    /// `active` / `complete` / `blocked`。
+    pub phase: String,
+    /// 已经开始的轮数。
+    #[serde(default)]
+    pub rounds: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub objective: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blocked_reason: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Limits {
     pub heartbeat_s: u64,
@@ -106,6 +120,9 @@ pub struct StatusFile {
     /// 池子里的哪个账户。夜班靠它回答「昨晚哪个 key 在拖后腿」。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub account: Option<String>,
+    /// 目标模式的进展。缺席 = 这次运行没有目标。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub goal: Option<GoalStatus>,
     /// 谁派的这件任务 —— 派工关系的**边**。缺席 = 没记录。
     ///
     /// 外部监控程序（`cute-agents-monitor`）拿它把「任务书流向」画出来：
@@ -503,6 +520,7 @@ pub fn write_preflight_failure(run_dir: &Path, failure: PreflightFailure) -> boo
         model: failure.model,
         ga: None,
         account: None,
+        goal: None,
         assigned_by: failure.assigned_by,
         title: failure.title,
         started_at: now,
@@ -580,6 +598,7 @@ mod tests {
             model: None,
             ga: None,
             account: None,
+            goal: None,
             assigned_by: None,
             title: None,
             started_at: now - 18 * 60_000,

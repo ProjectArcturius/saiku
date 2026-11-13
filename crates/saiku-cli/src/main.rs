@@ -14,6 +14,7 @@
 mod args;
 mod cancel;
 mod commands;
+mod night;
 mod report;
 mod serve;
 mod status;

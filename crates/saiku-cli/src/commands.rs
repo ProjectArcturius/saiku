@@ -57,6 +57,7 @@ pub async fn dispatch(argv: &[String]) -> i32 {
         "usage" => cmd_usage(&argv[1..]),
         "auth" => cmd_auth(&argv[1..]),
         "ga" => cmd_ga(&argv[1..]),
+        "night" => crate::night::cmd_night(&argv[1..]),
         "runtime" => cmd_runtime(&argv[1..]),
         "config" => cmd_config(&argv[1..]),
         "serve" => crate::serve::cmd_serve(&argv[1..]).await,
@@ -73,15 +74,15 @@ pub async fn dispatch(argv: &[String]) -> i32 {
 
 // ── 参数小工具 ──────────────────────────────────────────────────────────
 
-struct Flags {
-    positional: Vec<String>,
+pub(crate) struct Flags {
+    pub(crate) positional: Vec<String>,
     values: BTreeMap<String, Vec<String>>,
     switches: Vec<String>,
 }
 
 impl Flags {
     /// `value_flags` 是带取值的开关；其余以 `--` 开头的都当布尔开关，且必须在 `switch_flags` 里。
-    fn parse(argv: &[String], value_flags: &[&str], switch_flags: &[&str]) -> Result<Self, SpecError> {
+    pub(crate) fn parse(argv: &[String], value_flags: &[&str], switch_flags: &[&str]) -> Result<Self, SpecError> {
         let mut flags = Flags { positional: Vec::new(), values: BTreeMap::new(), switches: Vec::new() };
         let mut i = 0;
         while i < argv.len() {
@@ -106,13 +107,13 @@ impl Flags {
         }
         Ok(flags)
     }
-    fn one(&self, name: &str) -> Option<&str> {
+    pub(crate) fn one(&self, name: &str) -> Option<&str> {
         self.values.get(name).and_then(|v| v.last()).map(String::as_str)
     }
-    fn all(&self, name: &str) -> Vec<String> {
+    pub(crate) fn all(&self, name: &str) -> Vec<String> {
         self.values.get(name).cloned().unwrap_or_default()
     }
-    fn has(&self, name: &str) -> bool {
+    pub(crate) fn has(&self, name: &str) -> bool {
         self.switches.iter().any(|s| s == name)
     }
 }
@@ -178,7 +179,7 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
         argv,
         &["--config", "--workspace", "--id", "--accept", "--preamble", "--worktree", "--git-base", "--prompt",
           "--model", "--timeout", "--agent", "--state-root", "--by", "--format", "--permission",
-          "--effort", "--ga", "--need"],
+          "--effort", "--ga", "--need", "--goal", "--goal-rounds"],
         &["--detach", "--rerun"],
     )?;
     // TUI 粘贴可能超过 Windows 的命令行长度，也可能恰好是文件名。
@@ -209,8 +210,9 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
     let needs = Needs::parse(
         &cfg.dispatch.needs.iter().cloned().chain(flags.all("--need")).collect::<Vec<_>>(),
     )?;
-    if let Some(id) = &ga_id {
-        if !cfg.group_army.contains_key(id) {
+    if let Some(id) = &ga_id
+        && !cfg.group_army.contains_key(id)
+    {
             return Err(SpecError::new(
                 code::CONFIG_INVALID,
                 format!(
@@ -222,7 +224,6 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
                     }
                 ),
             ));
-        }
     }
 
     // ── 一般模式 vs 工人模式 ───────────────────────────────────────────────
@@ -430,6 +431,26 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
         }
     };
 
+    // ── 目标模式 ──────────────────────────────────────────────────────────
+    //
+    // DSH 的 goal 是**会话内**的持久目标：模型自己 `create_goal`，之后由 DSH 的
+    // goal-round-driver 在每次 idle 后注入下一轮，不需要宿主反复发 prompt。Saiku
+    // 要做的只有两件：把意图写清楚、并且在目标没完成时别把内核收掉（worker 侧）。
+    let goal = match flags.one("--goal") {
+        Some(objective) if !objective.trim().is_empty() => {
+            let max_rounds = match flags.one("--goal-rounds") {
+                Some(raw) => raw.parse::<u32>().map_err(|_| {
+                    SpecError::new(code::CONFIG_INVALID, format!("--goal-rounds 要一个正整数，得到 `{raw}`"))
+                })?,
+                None => 24,
+            };
+            if max_rounds == 0 {
+                return Err(SpecError::new(code::CONFIG_INVALID, "--goal-rounds 至少为 1"));
+            }
+            Some(saiku_core::config::GoalSpec { objective: objective.to_string(), max_rounds })
+        }
+        _ => None,
+    };
     let profile = permission.profile();
     // 装什么进 system prompt：工人模式是功能契约；一般模式看个性化开关，
     // **关着就一段都不加**，按供应商本体行事（用户 2026-10-14）。
@@ -469,6 +490,7 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
         ga: ga_pick.as_ref().map(|(ga, _, _)| ga.clone()),
         account: ga_pick.as_ref().map(|(_, account, _)| account.clone()),
         capacity_lease: ga_pick.as_ref().map(|(_, _, lease)| lease.clone()),
+        goal: goal.clone(),
     };
 
     let mut acceptance: Vec<Acceptance> = json_task.as_ref().map(|t| t.acceptance.clone()).unwrap_or_default();
@@ -482,6 +504,12 @@ async fn cmd_run(argv: &[String]) -> CmdResult {
         });
     }
     let mut instruction = instruction;
+    if let Some(spec) = &goal {
+        instruction.push_str(&format!(
+            "\n\n---\n\n## 目标模式\n\n这次不是「答完就停」，是「做到完」。按下面四步做：\n\n             1. 第一步就调用 `create_goal` 建立会话目标，`max_goal_rounds` 设为 {}，objective 用这一行原文：\n   {}\n             2. 每轮做最小可验证的一步；做完用 `update_goal` 保持 active，不要停在提问上。\n             3. 全部达成时 `update_goal` 置 complete，并给出证据（命令输出、文件路径、提交号）。\n             4. 真被外部条件卡死时置 blocked 并写清卡点；不要用 complete 蒙混。\n",
+            spec.max_rounds, spec.objective
+        ));
+    }
     let commands: Vec<&String> = acceptance
         .iter()
         .filter_map(|a| match a {

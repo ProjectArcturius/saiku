@@ -257,7 +257,7 @@ impl RuntimeProcess {
         cwd: Option<&Path>,
         inherit_env: bool,
     ) -> std::io::Result<Self> {
-        let mut command = configure_command(program, args, env, cwd, inherit_env);
+        let command = configure_command(program, args, env, cwd, inherit_env);
         // `no_window` 接的是 `std::process::Command`；tokio 的 Command 把它原样
         // 包在里面，`as_std_mut` 就是那条缝 —— 于是这里不需要第二份 flags 逻辑。
         #[cfg(windows)]

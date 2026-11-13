@@ -58,6 +58,8 @@ saiku —— Saiku（DSH 之上的编码 Agent）
       --effort <级别>                   模型强度（协议里叫 reasoningEffort；opencode 叫 variant，不用那个名）
       --ga <id>                         从哪个集团军（Group Army）取号；不给就用配置里的 dispatch.ga
       --need <要求>                     对模型的要求，可重复：vision / context=500000 / output=100000
+      --goal <目标>                     目标模式：让模型建 DSH 目标并一轮一轮推进到完成
+      --goal-rounds <N>                 目标最多推进几轮（缺省 24）
       --format <jsonl|text>             stdout 形态：工人模式 jsonl，一般模式 text
       --timeout <90|30m|2h>             墙钟预算
       --rerun                           同 ID 已有结论时重跑（旧记录改名保留）
@@ -69,6 +71,9 @@ saiku —— Saiku（DSH 之上的编码 Agent）
   saiku cancel <id>                   请求取消并等待收尾；监工已死时按 runtime_pid 收进程树
   saiku ls                            同 status --all
   saiku ga ls [--json]               集团军：账户、限额、此刻占用与冷却
+  saiku night run <night.json> [--detach]  夜班控制器：按队列跑、盯死亡、失败重派
+  saiku night status <目录> [--json]  一行：done/running/pending/failed + 控制器心跳
+  saiku night stop <目录>             请求停止（取消在跑的，不再接新的）
   saiku auth set|ls|rm|import-opencode         凭据（与 OpenCode auth.json 同形）
   saiku runtime install|status [--version V]   私有、钉版本的 DSH 运行时
   saiku config init|path              用户配置 saiku.json
@@ -97,7 +102,7 @@ pub fn parse(argv: &[String]) -> SpecResult<Command> {
         return Ok(Command::Tui);
     };
     match first.as_str() {
-        "run" | "status" | "wait" | "report" | "logs" | "cancel" | "usage" | "ls" | "auth" | "ga" | "runtime" | "config" | "serve" => {
+        "run" | "status" | "wait" | "report" | "logs" | "cancel" | "usage" | "ls" | "auth" | "ga" | "night" | "runtime" | "config" | "serve" => {
             Ok(Command::Ops(argv.to_vec()))
         }
         "--help" | "-h" | "help" => Ok(Command::Help),
