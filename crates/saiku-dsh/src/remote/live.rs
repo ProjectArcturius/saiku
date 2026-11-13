@@ -40,7 +40,7 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 
 use crate::remote::host::{find_node, WebKernel, WebKernelOptions};
-use crate::remote::{RemoteFrame, RemoteMux, RemoteRpc, Secret};
+use crate::remote::{RemoteFrame, RemoteMux, RemoteRpc, Secret, SessionClient};
 
 /// 起一个内核给一条测试用。
 ///
@@ -89,7 +89,12 @@ async fn start_kernel(test_name: &str) -> Option<(WebKernel, tempfile::TempDir)>
 fn runtime_layout() -> Result<crate::runtime::RuntimeLayout, String> {
     use crate::runtime::RuntimeLayout;
 
-    let version = saiku_core::userconfig::PINNED_DSH_VERSION.to_string();
+    // 版本可以覆盖：`SAIKU_DSH_TEST_VERSION=0.2.2-rc.2` + `SAIKU_DSH_RUNTIME_DIR`
+    // 就能拿同一套 live 断言体检候选内核（见 `docs/DSH_CONTRACT.md`）。
+    let version = std::env::var("SAIKU_DSH_TEST_VERSION")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| saiku_core::userconfig::PINNED_DSH_VERSION.to_string());
     let dir: PathBuf = match std::env::var_os("SAIKU_DSH_RUNTIME_DIR") {
         Some(dir) if !dir.is_empty() => PathBuf::from(dir),
         _ => saiku_core::userconfig::default_runtime_dir(&version),
@@ -338,4 +343,39 @@ async fn remote_live_forwarded_events_stream_is_ready() {
     );
     drop(subscription);
     shutdown_and_confirm(&mut kernel, "转发事件流之后").await;
+}
+
+
+/// 内核命令通道（`commands/list` + `commands/execute`）在真内核上的形状。
+///
+/// 不调模型、不耗配额：`/compact` 在空会话上只会被内核判成「没有可压缩的历史」，
+/// 但**调用本身**要走通 —— 这是 TUI 的 `/kernel` 与未知命令转发的依据。
+///
+/// 用 `SAIKU_DSH_RUNTIME_DIR` 指向候选内核目录，就能拿同一套断言体检新版本。
+#[tokio::test]
+#[ignore = "起真内核，需要本机已安装 DSH 运行时"]
+async fn remote_live_commands_answer_the_kernel_registry() {
+    let Some((kernel, _home)) = start_kernel("remote_live_commands_answer_the_kernel_registry").await
+    else {
+        return;
+    };
+    let client = SessionClient::connect(&kernel).await.expect("连内核");
+    let workspace = tempfile::tempdir().expect("建 workspace");
+    let session = client.create(workspace.path()).await.expect("建会话");
+
+    let items = client.list_commands(&session).await.expect("commands/list 该成功");
+    assert!(!items.is_empty(), "内核没注册任何人类命令：{items:?}");
+    let names: Vec<&str> = items.iter().map(|item| item.name.as_str()).collect();
+    assert!(
+        names.contains(&"compact"),
+        "命令表里应有 compact（升级内核时这一条最容易被改名）：{names:?}"
+    );
+
+    client
+        .execute_command(&session, "/compact")
+        .await
+        .expect("commands/execute 该成功（空会话的结果由内核决定）");
+
+    let mut kernel = kernel;
+    shutdown_and_confirm(&mut kernel, "命令通道之后").await;
 }

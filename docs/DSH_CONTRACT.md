@@ -68,6 +68,19 @@ saiku dsh doctor --version 0.2.2-rc.2          # 115 行 / 113 包，17 个必�
 结论：0.2.2 具备**升级候选**资格。升级还需两步：一次真模型冒烟（用 GA 里最便宜的账户），
 以及决定是否同批接 F4 附件与 F5 ask_user 应答。
 
+### 命令通道：在两个真内核上都实测过（2026-11-13）
+
+`commands/list` 与 `commands/execute` 不经过模型，所以在**不消耗配额**的前提下就能验形状：
+
+- 新 live 用例 `remote_live_commands_answer_the_kernel_registry`：起真内核 → 建会话 →
+  列命令 → 执行 `/compact`（空会话的**结果**由内核决定，这里只验**调用通道**）。
+- 0.2.1-alpha.2 与 0.2.2-rc.2 都通过；两者的命令表都含 `compact`。
+- 跑法：`SAIKU_DSH_TEST_VERSION=<版本> SAIKU_DSH_RUNTIME_DIR=<目录> cargo test -p saiku-dsh
+  --lib remote_live_commands -- --ignored`。
+
+这条实证取代了「按内核源码推断」：TUI 的 `/kernel`、`/` 补全里的内核命令、以及未知
+命令的转发，依据的是实测行为而不是我们的理解。
+
 ### 这次试验暴露并修掉的 bug
 
 `saiku runtime install --version X` 曾经先看配置里的 `runtime.dir`，于是把 X 装进了
