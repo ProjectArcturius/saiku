@@ -5,6 +5,7 @@
 //!
 //! 依赖方向：`saiku-core` ← 本 crate ← `saiku-cli`。
 
+pub mod contract;
 pub mod process;
 pub mod projection;
 pub mod protocol;

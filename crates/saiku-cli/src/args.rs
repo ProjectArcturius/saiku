@@ -75,6 +75,8 @@ saiku —— Saiku（DSH 之上的编码 Agent）
   saiku night status <目录> [--json]  一行：done/running/pending/failed + 控制器心跳
   saiku night stop <目录>             请求停止（取消在跑的，不再接新的）
   saiku auth set|ls|rm|import-opencode         凭据（与 OpenCode auth.json 同形）
+  saiku dsh doctor [--against-version V]  对照内核契约：缺行、增删包、与另一版本逐行比
+  saiku dsh list                      已安装的 DSH 版本与当前钉住的那一个
   saiku runtime install|status [--version V]   私有、钉版本的 DSH 运行时
   saiku config init|path              用户配置 saiku.json
   saiku serve --stdio [--permission L] [--workspace D]  给 GUI 用：会话服务按行走 stdin/stdout
@@ -102,7 +104,7 @@ pub fn parse(argv: &[String]) -> SpecResult<Command> {
         return Ok(Command::Tui);
     };
     match first.as_str() {
-        "run" | "status" | "wait" | "report" | "logs" | "cancel" | "usage" | "ls" | "auth" | "ga" | "night" | "runtime" | "config" | "serve" => {
+        "run" | "status" | "wait" | "report" | "logs" | "cancel" | "usage" | "ls" | "auth" | "ga" | "night" | "dsh" | "runtime" | "config" | "serve" => {
             Ok(Command::Ops(argv.to_vec()))
         }
         "--help" | "-h" | "help" => Ok(Command::Help),

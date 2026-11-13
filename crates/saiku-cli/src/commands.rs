@@ -58,6 +58,7 @@ pub async fn dispatch(argv: &[String]) -> i32 {
         "auth" => cmd_auth(&argv[1..]),
         "ga" => cmd_ga(&argv[1..]),
         "night" => crate::night::cmd_night(&argv[1..]),
+        "dsh" => crate::dsh_cmd::cmd_dsh(&argv[1..]),
         "runtime" => cmd_runtime(&argv[1..]),
         "config" => cmd_config(&argv[1..]),
         "serve" => crate::serve::cmd_serve(&argv[1..]).await,

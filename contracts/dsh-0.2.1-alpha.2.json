@@ -1,0 +1,399 @@
+{
+  "schema_version": 1,
+  "version": "0.2.1-alpha.2",
+  "profile": "sdk",
+  "rows": {
+    "agent": {
+      "package": "@deepseek-ai/dsh-agent",
+      "disabled": null
+    },
+    "agent-default-model": {
+      "package": "@deepseek-ai/dsh-agent-default-model",
+      "disabled": null
+    },
+    "agent-instructions": {
+      "package": "@deepseek-ai/dsh-agent-instructions",
+      "disabled": null
+    },
+    "agent-loop": {
+      "package": "@deepseek-ai/dsh-agent-loop",
+      "disabled": null
+    },
+    "approval": {
+      "package": "@deepseek-ai/dsh-user-approval",
+      "disabled": null
+    },
+    "attachment-local": {
+      "package": "@deepseek-ai/dsh-attachment-local",
+      "disabled": null
+    },
+    "authorization": {
+      "package": "@deepseek-ai/dsh-authorization",
+      "disabled": null
+    },
+    "bash-sandbox": {
+      "package": "@deepseek-ai/dsh-bash-sandbox",
+      "disabled": null
+    },
+    "command-compact": {
+      "package": "@deepseek-ai/dsh-command-compact",
+      "disabled": null
+    },
+    "command-feedback": {
+      "package": "@deepseek-ai/dsh-command-feedback",
+      "disabled": null
+    },
+    "command-goal": {
+      "package": "@deepseek-ai/dsh-command-goal",
+      "disabled": null
+    },
+    "commands": {
+      "package": "@deepseek-ai/dsh-commands",
+      "disabled": null
+    },
+    "compaction-basic": {
+      "package": "@deepseek-ai/dsh-compaction-basic",
+      "disabled": null
+    },
+    "config-editor": {
+      "package": "@deepseek-ai/dsh-config-editor",
+      "disabled": null
+    },
+    "credentials": {
+      "package": "@deepseek-ai/dsh-credentials-local",
+      "disabled": null
+    },
+    "deepseek-account": {
+      "package": "@deepseek-ai/dsh-deepseek-account-platform",
+      "disabled": null
+    },
+    "deepseek-llm-api-extensions": {
+      "package": "@deepseek-ai/dsh-deepseek-llm-api-extensions",
+      "disabled": null
+    },
+    "fs-observation-policy": {
+      "package": "@deepseek-ai/dsh-fs-observation-policy",
+      "disabled": null
+    },
+    "fs-sandbox": {
+      "package": "@deepseek-ai/dsh-fs-sandbox",
+      "disabled": null
+    },
+    "goal": {
+      "package": "@deepseek-ai/dsh-goal",
+      "disabled": null
+    },
+    "goal-round-driver": {
+      "package": "@deepseek-ai/dsh-goal-round-driver",
+      "disabled": null
+    },
+    "hmr": {
+      "package": "@deepseek-ai/dsh-hmr",
+      "disabled": true
+    },
+    "image-offload": {
+      "package": "@deepseek-ai/dsh-compaction-image-offload",
+      "disabled": null
+    },
+    "jobs": {
+      "package": "@deepseek-ai/dsh-jobs-local",
+      "disabled": null
+    },
+    "llm": {
+      "package": "@deepseek-ai/dsh-llm",
+      "disabled": null
+    },
+    "llm-deepseek": {
+      "package": "@deepseek-ai/dsh-llm-deepseek-api-key",
+      "disabled": null
+    },
+    "llm-deepseek-account": {
+      "package": "@deepseek-ai/dsh-llm-deepseek-account",
+      "disabled": null
+    },
+    "llm-pi-ai": {
+      "package": "@deepseek-ai/dsh-llm-pi-ai",
+      "disabled": null
+    },
+    "llm-retry": {
+      "package": "@deepseek-ai/dsh-llm-retry",
+      "disabled": null
+    },
+    "mcp-resources": {
+      "package": "@deepseek-ai/dsh-mcp-resources",
+      "disabled": null
+    },
+    "otel": {
+      "package": "@deepseek-ai/dsh-otel",
+      "disabled": null
+    },
+    "permission": {
+      "package": "@deepseek-ai/dsh-permission-presets",
+      "disabled": null
+    },
+    "plan-mode": {
+      "package": "@deepseek-ai/dsh-plan-mode",
+      "disabled": null
+    },
+    "plugin-manager": {
+      "package": "@deepseek-ai/dsh-plugin-manager",
+      "disabled": null
+    },
+    "plugin-package-inventory-deepseek": {
+      "package": "@deepseek-ai/dsh-plugin-package-inventory-deepseek",
+      "disabled": null
+    },
+    "ptc-runtime": {
+      "package": "@deepseek-ai/dsh-ptc-runtime-node",
+      "disabled": null
+    },
+    "pwsh-sandbox": {
+      "package": "@deepseek-ai/dsh-pwsh-sandbox",
+      "disabled": null
+    },
+    "repeat-tool-reminder": {
+      "package": "@deepseek-ai/dsh-repeat-tool-reminder",
+      "disabled": null
+    },
+    "sandbox": {
+      "package": "@deepseek-ai/dsh-sandbox-local",
+      "disabled": null
+    },
+    "sandbox-policy": {
+      "package": "@deepseek-ai/dsh-sandbox-policy",
+      "disabled": null
+    },
+    "sdk-app-startup": {
+      "package": "@deepseek-ai/dsh-sdk-app",
+      "disabled": null
+    },
+    "sdk-jsonrpc-server": {
+      "package": "@deepseek-ai/dsh-sdk-jsonrpc-server",
+      "disabled": null
+    },
+    "session": {
+      "package": "@deepseek-ai/dsh-session",
+      "disabled": null
+    },
+    "session-checkpoint-policy": {
+      "package": "@deepseek-ai/dsh-session-checkpoint-policy",
+      "disabled": null
+    },
+    "session-log-deepseek": {
+      "package": "@deepseek-ai/dsh-session-log-deepseek",
+      "disabled": null
+    },
+    "session-persistence-jsonl": {
+      "package": "@deepseek-ai/dsh-session-persistence-jsonl",
+      "disabled": null
+    },
+    "session-projection": {
+      "package": "@deepseek-ai/dsh-session-projection",
+      "disabled": null
+    },
+    "session-projection-cache": {
+      "package": "@deepseek-ai/dsh-session-projection-cache",
+      "disabled": null
+    },
+    "session-query-sqlite": {
+      "package": "@deepseek-ai/dsh-session-query-sqlite",
+      "disabled": null
+    },
+    "session-telemetry-otel": {
+      "package": "@deepseek-ai/dsh-session-telemetry-otel",
+      "disabled": null
+    },
+    "session-title": {
+      "package": "@deepseek-ai/dsh-session-title",
+      "disabled": null
+    },
+    "session-title-llm": {
+      "package": "@deepseek-ai/dsh-session-title-first-prompt-llm",
+      "disabled": true
+    },
+    "settings": {
+      "package": "@deepseek-ai/dsh-settings",
+      "disabled": null
+    },
+    "shell-env": {
+      "package": "@deepseek-ai/dsh-shell-env",
+      "disabled": null
+    },
+    "skill": {
+      "package": "@deepseek-ai/dsh-skill",
+      "disabled": null
+    },
+    "skill-filesystem": {
+      "package": "@deepseek-ai/dsh-skill-filesystem",
+      "disabled": null
+    },
+    "skill-office": {
+      "package": "@deepseek-ai/dsh-skill-office",
+      "disabled": null
+    },
+    "spill-local": {
+      "package": "@deepseek-ai/dsh-spill-local",
+      "disabled": null
+    },
+    "spill-policy": {
+      "package": "@deepseek-ai/dsh-spill-policy",
+      "disabled": null
+    },
+    "storage": {
+      "package": "@deepseek-ai/dsh-storage",
+      "disabled": null
+    },
+    "storage-domain": {
+      "package": "@deepseek-ai/dsh-storage-domain",
+      "disabled": null
+    },
+    "storage-json": {
+      "package": "@deepseek-ai/dsh-storage-json",
+      "disabled": null
+    },
+    "subagent": {
+      "package": "@deepseek-ai/dsh-subagent",
+      "disabled": null
+    },
+    "subagent-fork-in-process": {
+      "package": "@deepseek-ai/dsh-subagent-fork-in-process",
+      "disabled": null
+    },
+    "subagent-spawn-in-process": {
+      "package": "@deepseek-ai/dsh-subagent-spawn-in-process",
+      "disabled": null
+    },
+    "subprocess": {
+      "package": "@deepseek-ai/dsh-subprocess-local",
+      "disabled": null
+    },
+    "system-prompt": {
+      "package": "@deepseek-ai/dsh-system-prompt",
+      "disabled": null
+    },
+    "timeout-policy": {
+      "package": "@deepseek-ai/dsh-tool-call-timeout-policy",
+      "disabled": null
+    },
+    "timer": {
+      "package": "@deepseek-ai/cordis-plugin-timer",
+      "disabled": null
+    },
+    "token-meter": {
+      "package": "@deepseek-ai/dsh-token-meter",
+      "disabled": null
+    },
+    "tool-bash": {
+      "package": "@deepseek-ai/dsh-tool-bash",
+      "disabled": null
+    },
+    "tool-fs": {
+      "package": "@deepseek-ai/dsh-tool-fs",
+      "disabled": null
+    },
+    "tool-fs-search": {
+      "package": "@deepseek-ai/dsh-tool-fs-search",
+      "disabled": null
+    },
+    "tool-goal": {
+      "package": "@deepseek-ai/dsh-tool-goal",
+      "disabled": null
+    },
+    "tool-jobs": {
+      "package": "@deepseek-ai/dsh-tool-jobs",
+      "disabled": null
+    },
+    "tool-plugin-manager": {
+      "package": "@deepseek-ai/dsh-plugin-manager",
+      "disabled": true
+    },
+    "tool-pwsh": {
+      "package": "@deepseek-ai/dsh-tool-pwsh",
+      "disabled": null
+    },
+    "tool-result-pruner": {
+      "package": "@deepseek-ai/dsh-compaction-tool-result-pruner",
+      "disabled": null
+    },
+    "tool-skill": {
+      "package": "@deepseek-ai/dsh-tool-skill",
+      "disabled": null
+    },
+    "tool-subagent": {
+      "package": "@deepseek-ai/dsh-tool-subagent",
+      "disabled": null
+    },
+    "tool-subagent-control": {
+      "package": "@deepseek-ai/dsh-tool-subagent-control",
+      "disabled": null
+    },
+    "tool-subagent-fork": {
+      "package": "@deepseek-ai/dsh-tool-subagent",
+      "disabled": null
+    },
+    "tool-subagent-list-agents": {
+      "package": "@deepseek-ai/dsh-tool-subagent-control",
+      "disabled": null
+    },
+    "tool-todo": {
+      "package": "@deepseek-ai/dsh-tool-todo",
+      "disabled": null
+    },
+    "tool-web": {
+      "package": "@deepseek-ai/dsh-tool-web",
+      "disabled": null
+    },
+    "tool-workflow": {
+      "package": "@deepseek-ai/dsh-tool-workflow",
+      "disabled": null
+    },
+    "tool-working-directory": {
+      "package": "@deepseek-ai/dsh-tool-working-directory",
+      "disabled": null
+    },
+    "tools": {
+      "package": "@deepseek-ai/dsh-tools",
+      "disabled": null
+    },
+    "typert": {
+      "package": "@deepseek-ai/dsh-typert-registry",
+      "disabled": null
+    },
+    "typert-gateway": {
+      "package": "@deepseek-ai/dsh-api-gateway",
+      "disabled": null
+    },
+    "typert-loader": {
+      "package": "@deepseek-ai/dsh-typert-loader",
+      "disabled": null
+    },
+    "user-questions": {
+      "package": "@deepseek-ai/dsh-user-questions",
+      "disabled": null
+    },
+    "web": {
+      "package": "@deepseek-ai/dsh-web",
+      "disabled": null
+    },
+    "web-fetch-http": {
+      "package": "@deepseek-ai/dsh-web-fetch-http",
+      "disabled": null
+    },
+    "web-search-deepseek": {
+      "package": "@deepseek-ai/dsh-web-search-deepseek",
+      "disabled": null
+    },
+    "workflow-ptc": {
+      "package": "@deepseek-ai/dsh-workflow-ptc",
+      "disabled": null
+    },
+    "working-directory": {
+      "package": "@deepseek-ai/dsh-working-directory",
+      "disabled": null
+    },
+    "workspace-dependencies": {
+      "package": "@deepseek-ai/dsh-tool-workspace-dependencies",
+      "disabled": null
+    }
+  }
+}

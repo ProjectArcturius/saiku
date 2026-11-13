@@ -444,6 +444,32 @@ mod tests {
         assert_eq!(is_disabled(rows, "tool-web"), !web, "`tool-web` 的开关与 network={web} 不符");
     }
 
+    /// 契约清单必须覆盖 patch 可能点名的每一行 —— 少一行，`saiku dsh doctor`
+    /// 就会在升级时放过一个真实缺口。
+    #[test]
+    fn every_patch_row_is_declared_in_the_contract_list() {
+        let plan = resolve("workspace-development", "echo", None, &["."], &["."], true, false, false, json!({}), None)
+            .expect("策略应能解析");
+        let g = guard(&plan, Permission::Full).expect("guard 应能算出");
+        for search in [false, true] {
+            let text = render_patch(&PatchInput {
+                route: &pi_route(),
+                persona_suffix: "",
+                session_log_upload: false,
+                session_search: search,
+                guard: &g,
+            });
+            let rows: Vec<Value> = serde_json::from_str(&text).unwrap();
+            for row in rows {
+                let id = row["id"].as_str().unwrap();
+                assert!(
+                    crate::contract::REQUIRED_ROWS.contains(&id),
+                    "patch 用了契约清单里没有的 id `{id}`；补进 REQUIRED_ROWS 才会被 doctor 检查"
+                );
+            }
+        }
+    }
+
     #[test]
     fn pi_ai_patch_has_route_and_no_secret() {
         let route = pi_route();
