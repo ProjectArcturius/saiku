@@ -153,6 +153,11 @@ pub async fn run() -> i32 {
         personalization: loaded.config.as_ref().is_some_and(|cfg| cfg.personalization.enabled),
         catalog: loaded.catalog,
         model_prefs: model_prefs_path(),
+        armies: loaded
+            .config
+            .as_ref()
+            .map(|cfg| cfg.group_army.keys().cloned().collect())
+            .unwrap_or_default(),
     };
     let (request_tx, request_rx) = mpsc::channel();
     let (update_tx, update_rx) = mpsc::channel();

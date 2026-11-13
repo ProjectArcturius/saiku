@@ -261,6 +261,7 @@ mod tests {
             Boot {
                 workspace: ".".into(),
                 state_root: "unused".into(),
+                armies: Vec::new(),
                 model: None,
                 effort: None,
                 config_error: None,

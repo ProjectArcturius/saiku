@@ -89,6 +89,8 @@ pub(crate) struct SubagentRow {
     pub session_id: String,
     pub label: String,
     pub running: bool,
+    /// 内核给的 `updatedAt`：多久没动了。子会话卡住时，这一列比「进行中」有用。
+    pub updated_at: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,6 +133,8 @@ pub(crate) struct App {    pub boot: Boot,
     pub agent: String,
     pub permission: String,
     pub effort: Option<String>,
+    /// `/dispatch` 的默认池子（`/ga` 改它，落进偏好文件）。
+    pub ga: Option<String>,
     /// 下一次请求要用的模型。启动时来自配置，模型对话框改动它。
     pub model: Option<ModelRef>,
     pub model_prefs: ModelPrefs,
@@ -216,6 +220,7 @@ impl App {
         let no_color_notice = std::env::var_os("NO_COLOR")
             .is_some_and(|value| !value.is_empty())
             .then(|| "NO_COLOR 已设置：界面不发颜色；清掉这个环境变量再启动即可".to_string());
+        let ga = preferences.ga.clone();
         let notice = boot
             .config_error
             .as_ref()
@@ -248,6 +253,7 @@ impl App {
             effort,
             boot,
             preferences,
+            ga,
             theme,
             editor,
             runs: Vec::new(),
@@ -947,9 +953,43 @@ impl App {
                     self.open_dialog(Dialog::Subagents);
                 }
             }
+            Action::Ga => match arg.map(str::trim) {
+                Some("off") | Some("none") | Some("clear") => {
+                    self.ga = None;
+                    self.preferences.ga = None;
+                    self.notice = "派工不再指定池子（走单账户路由）".into();
+                }
+                Some(id) if !id.is_empty() => {
+                    if !self.boot.armies.is_empty() && !self.boot.armies.iter().any(|a| a == id) {
+                        self.notice = format!(
+                            "没有池子 `{id}`；可选：{}",
+                            self.boot.armies.join(" / ")
+                        );
+                    } else {
+                        self.ga = Some(id.to_string());
+                        self.preferences.ga = self.ga.clone();
+                        self.notice = format!("派工默认池子：{id}");
+                    }
+                }
+                _ => {
+                    self.notice = if self.boot.armies.is_empty() {
+                        "配置里没有 group_army；派工走单账户路由".into()
+                    } else {
+                        match &self.ga {
+                            Some(ga) => format!(
+                                "当前默认池子：{ga}；可选：{}（/ga off 清除）",
+                                self.boot.armies.join(" / ")
+                            ),
+                            None => format!("未指定池子；可选：{}", self.boot.armies.join(" / ")),
+                        }
+                    };
+                }
+            },
             Action::Dispatch => match arg {
                 Some(text) => match parse_dispatch(text) {
                     Ok((prompt, ga, needs)) => {
+                        // 没写 `--ga` 时用 `/ga` 记住的那个；两者都没有就走单账户路由。
+                        let ga = ga.or_else(|| self.ga.clone());
                         self.start_headless(prompt, ga, needs, requests);
                     }
                     Err(message) => self.notice = message,
@@ -1620,7 +1660,12 @@ impl App {
                 .find(|s| s.session_id == parent)
                 .and_then(|s| s.title.clone())
                 .unwrap_or_else(|| "父会话".into());
-            rows.push(SubagentRow { session_id: parent.to_string(), label: format!("↩ 回到 {title}"), running: false });
+            rows.push(SubagentRow {
+                session_id: parent.to_string(),
+                label: format!("↩ 回到 {title}"),
+                running: false,
+                updated_at: 0,
+            });
         }
         if let Some(id) = self.session_id.as_deref() {
             rows.extend(
@@ -1635,6 +1680,7 @@ impl App {
                             .or_else(|| s.title.clone())
                             .unwrap_or_else(|| s.session_id.clone()),
                         running: s.running,
+                        updated_at: s.updated_at,
                     }),
             );
         }
@@ -2684,6 +2730,7 @@ mod tests {
         Boot {
             workspace: ".".into(),
             state_root: "unused".into(),
+            armies: Vec::new(),
             model: model.map(str::to_string),
             effort: None,
             config_error: None,
@@ -3236,6 +3283,7 @@ mod tests {
             Boot {
                 workspace: ".".into(),
                 state_root: "unused".into(),
+                armies: Vec::new(),
                 model: None,
                 effort: None,
                 config_error: None,
@@ -4002,6 +4050,39 @@ mod tests {
         assert!(app.preferences.stash.is_empty());
         let saved = serde_json::to_string(&app.preferences).unwrap();
         assert!(saved.contains("\"stash\""), "暂存跟偏好一起落盘：{saved}");
+    }
+
+    /// `/ga` 记住默认池子，`/dispatch` 不带 `--ga` 时用它；`/ga off` 清掉。
+    #[test]
+    fn ga_sets_the_default_pool_and_dispatch_uses_it() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let boot = Boot { armies: vec!["inf-ds".into(), "other".into()], ..boot(None, PathBuf::from("unused.json")) };
+        let mut app = App::new(boot, Preferences::default(), ModelPrefs::default());
+        ready(&mut app);
+        let _ = app.execute(Action::Ga, Some("inf-ds"), &tx);
+        assert_eq!(app.ga.as_deref(), Some("inf-ds"));
+        let saved = serde_json::to_string(&app.preferences).unwrap();
+        assert!(saved.contains("\"inf-ds\""), "要落进偏好文件：{saved}");
+
+        let _ = app.execute(Action::Dispatch, Some("把导航页补齐"), &tx);
+        let Request::Start(request) = rx.recv().unwrap() else { panic!("应发一条 Start") };
+        assert_eq!(request.ga.as_deref(), Some("inf-ds"), "派工应沿用默认池子");
+
+        app.active = None;
+        let _ = app.execute(Action::Ga, Some("off"), &tx);
+        assert!(app.ga.is_none());
+        assert!(!serde_json::to_string(&app.preferences).unwrap().contains("inf-ds"));
+    }
+
+    #[test]
+    fn ga_rejects_a_pool_that_is_not_configured() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let boot = Boot { armies: vec!["inf-ds".into()], ..boot(None, PathBuf::from("unused.json")) };
+        let mut app = App::new(boot, Preferences::default(), ModelPrefs::default());
+        ready(&mut app);
+        let _ = app.execute(Action::Ga, Some("nope"), &tx);
+        assert!(app.ga.is_none());
+        assert!(app.notice.contains("inf-ds"), "应列出可选项：{}", app.notice);
     }
 
     /// `/dispatch`：把长活派到 TUI 之外（headless），池子与能力要求从请求里带出去。

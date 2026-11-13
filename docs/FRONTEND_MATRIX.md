@@ -34,7 +34,7 @@
 | 审批（confirm） | `approval`、`user-approval`、`permission` | 有（`/approvals`、confirm 档） | 无（headless 拒绝 confirm） | F5 | 无审批通道时 confirm 档拒绝启动（已有） |
 | 浏览器/网络工具 | `tool-web`、`web-deepseek-api` | 无（内核工具直接可见） | 半（`--permission` 控制） | F6 | — |
 | 模型目录与切换 | `model/selection` | 有（模型对话框） | 有（`--model`） | — | — |
-| 供应商池（GA） | Saiku 自有 | 有（`/dispatch --ga … --need …` 派出、`/runs` 详情看池/账户） | 有（`--ga`、`ga ls`） | F6 | 交互会话不经过 GA；`/ga` 选择器未做（现在靠命令行参数） |
+| 供应商池（GA） | Saiku 自有 | 有（`/ga` 记住默认池、`/dispatch` 派出、`/runs` 详情看池/账户） | 有（`--ga`、`ga ls`） | F6 | 交互会话不经过 GA；池子的限额/冷却仍只在 `saiku ga ls` 里看 |
 | 用量 / 成本 | `assistant/message.usage` | 有（`/usage`） | 有（`usage`） | — | 无费用换算（只有 token） |
 | 会话压缩 | `command-compact`、`compaction-*` | 无 | 自动 | — | 无手动入口 |
 | 遥测 / 会话日志上传 | `session-log-deepseek` | — | 已显式关闭 | — | 开关在 patch 里，不在界面 |

@@ -324,6 +324,17 @@ fn footer_row(frame: &mut Frame, app: &App, area: Rect, t: &Theme) {
         left.push(key("esc".into()));
         left.push(label(" 中断"));
     }
+    // 待答审批：内核在等一个人，等不到就一直停着。弹层之外也要看得见 ——
+    // 用户可能正开着别的弹层，或者刚切回来。
+    if !app.approvals.is_empty() {
+        if !left.is_empty() {
+            left.push(Span::raw("  "));
+        }
+        left.push(Span::styled(
+            format!("⚑ {} 待批", app.approvals.len()),
+            Style::default().fg(warning(t)),
+        ));
+    }
     // 目标：常驻的左栏片段。它比通知重要 —— 通知会消失，而「这条会话还在为目标跑」
     // 是用户决定要不要等下去的依据（docs/GOAL_MODE.md）。
     if let Some(goal) = app.conversation.as_ref().and_then(|c| c.goal.as_ref()) {
@@ -1188,8 +1199,15 @@ fn popup(frame: &mut Frame, app: &App, dialog: &Dialog, area: Rect, t: &Theme) {
             .subagent_rows()
             .into_iter()
             .map(|row| {
+                let now = now_ms();
                 let running = if row.running { " · 进行中" } else { "" };
-                (format!("{}{running}", row.label), true)
+                // 子会话卡住时，「多久没动」比「进行中」更能说明问题。
+                let idle = if row.updated_at == 0 {
+                    String::new()
+                } else {
+                    format!(" · {}", ago(now, row.updated_at))
+                };
+                (format!("{}{running}{idle}", row.label), true)
             })
             .collect(),
         Dialog::Stash => app
@@ -2472,6 +2490,7 @@ mod tests {
             Boot {
                 workspace: "C:/项目/saiku".into(),
                 state_root: "unused".into(),
+                armies: Vec::new(),
                 model: Some("opencode-go/deepseek-v4.1-flash".into()),
                 effort: None,
                 config_error: None,
@@ -3230,6 +3249,27 @@ mod tests {
         terminal.draw(|f| draw(f, &mut a)).unwrap();
         let text = row_dump(terminal.backend().buffer());
         assert!(!text.contains("main"), "没有 git 时整块省略，不写占位：{text}");
+    }
+
+    /// 审批弹层没打开时（开着别的弹层 / 刚切回来），页脚也要说「有人在等你」。
+    #[test]
+    fn a_pending_approval_is_visible_on_the_footer_without_its_dialog() {
+        let mut a = conversation_app();
+        a.approvals.push(saiku_core::conversation::ApprovalRequest {
+            request_id: "e1".into(),
+            tool_name: "bash".into(),
+            call_id: None,
+            reason: None,
+            display_reason: None,
+            agent: None,
+        });
+        let mut terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
+        terminal.draw(|f| draw(f, &mut a)).unwrap();
+        assert!(
+            contains_wrapped(terminal.backend().buffer(), "待批"),
+            "页脚应显示待答审批：{:?}",
+            row_text(terminal.backend().buffer(), 28)
+        );
     }
 
     /// 审批弹层要压在最上面，且把「等谁 / 怎么答」写清楚。

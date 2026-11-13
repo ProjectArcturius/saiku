@@ -55,6 +55,9 @@ pub struct Boot {
     /// 配置里的 `personalization.enabled`。开着时 persona 随 Agent 装配进内核（§5.3.1），
     /// 所以换 Agent 也要重启内核；关着时 Echo 与 Build 在交互面上没有区别。
     pub personalization: bool,
+    /// `saiku.json` 里 `group_army` 的池子 id（已排序）。`/ga` 用它校验与提示。
+    /// 交互会话不经过池子；这份列表只为派工服务。
+    pub armies: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,6 +157,8 @@ pub(crate) struct Preferences {
     paste_summary: bool,
     /// 暂存的草稿，新的在前（OpenCode 的 prompt stash）。与历史同一个文件，重启不丢。
     stash: Vec<String>,
+    /// `/dispatch` 的默认池子。空 = 不指定，走单账户路由。
+    ga: Option<String>,
 }
 impl Default for Preferences {
     fn default() -> Self {
@@ -165,6 +170,7 @@ impl Default for Preferences {
             recent_files: Vec::new(),
             paste_summary: true,
             stash: Vec::new(),
+            ga: None,
         }
     }
 }

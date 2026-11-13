@@ -35,6 +35,8 @@ pub(crate) enum Action {
     Night,
     /// 把一件长活派到 headless（可指定池子与能力要求）。
     Dispatch,
+    /// 派工默认用哪个集团军。
+    Ga,
     /// 暂存当前草稿；输入框为空时列出暂存的草稿取回。
     Stash,
     /// 还有哪几条审批在等回答。
@@ -290,6 +292,18 @@ pub(crate) const ENTRIES: &[Entry] = &[
         category: Category::Session,
         slash: Some("/subagents"),
         arg: None,
+        keys: &[],
+        context: Context::Composer,
+        unavailable: None,
+        palette: true,
+    },
+    Entry {
+        action: Action::Ga,
+        id: "runs.ga",
+        title: "派工默认池子（/ga <池子> 或 /ga off）",
+        category: Category::Session,
+        slash: Some("/ga"),
+        arg: Some("[池子]"),
         keys: &[],
         context: Context::Composer,
         unavailable: None,
