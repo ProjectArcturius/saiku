@@ -35,6 +35,8 @@
   踩文件、让合并变成瓶颈（参工作台关于派工的结论）。
 - `depends_on` 全部 `done` 才起跑；`needs` 原样传给 `run --need`，由 GA 的能力门槛判。
 - 任务书本身仍然带验收门；`accept` 只是把命令行上的门写进计划，二者会叠加。
+- 每件默认 `--permission full`：夜班任务多在 worktree 里跑，提交需要它；要更严就在任务项里写
+  `"permission": "workspace"`（代价是 worktree 里的 git 命令会失败）。
 
 ## 状态（可变，原子替换）
 

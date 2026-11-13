@@ -203,8 +203,13 @@ fn cmd_run(argv: &[String]) -> Result<i32, SpecError> {
         .first()
         .ok_or_else(|| SpecError::new(code::CONFIG_INVALID, "用法：saiku night run <night.json>"))?;
     let plan = load_plan(Path::new(plan_path))?;
-    let (cfg, _cfg_path) = UserConfig::locate_and_load(flags.one("--config").map(Path::new))?;
-    let ctx = Context::resolve(&plan, &cfg, flags.one("--state-dir").map(Path::new))?;
+    let (cfg, cfg_path) = UserConfig::locate_and_load(flags.one("--config").map(Path::new))?;
+    let ctx = Context::resolve(
+        &plan,
+        &cfg,
+        Some(&cfg_path),
+        flags.one("--state-dir").map(Path::new),
+    )?;
 
     if flags.has("--detach") {
         return detach(&ctx, Path::new(plan_path));
@@ -248,17 +253,26 @@ struct Context {
 }
 
 impl Context {
-    fn resolve(plan: &Plan, cfg: &UserConfig, override_dir: Option<&Path>) -> SpecResult<Self> {
+    fn resolve(
+        plan: &Plan,
+        cfg: &UserConfig,
+        loaded_config: Option<&Path>,
+        override_dir: Option<&Path>,
+    ) -> SpecResult<Self> {
         let state_root = plan.state_root.clone().unwrap_or_else(|| cfg.state_root());
         let night_dir = override_dir
             .map(Path::to_path_buf)
             .or_else(|| plan.night_dir.clone())
             .unwrap_or_else(|| state_root.join("night").join(&plan.run_id));
-        let config = plan.config.clone().unwrap_or_else(|| {
-            std::env::var_os("SAIKU_CONFIG")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| saiku_core::userconfig::config_dir().join("saiku").join("saiku.json"))
-        });
+        // 子进程必须拿到**同一份**配置：`--config` 显式给的优先，其次计划里写死的，
+        // 最后才是实际加载到的那一份 —— 不能再按环境变量猜一次，那是两份真相。
+        let config = plan
+            .config
+            .clone()
+            .or_else(|| loaded_config.map(Path::to_path_buf))
+            .unwrap_or_else(|| {
+                saiku_core::userconfig::config_dir().join("saiku").join("saiku.json")
+            });
         Ok(Self { night_dir, state_root, config })
     }
 }
