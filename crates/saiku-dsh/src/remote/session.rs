@@ -120,6 +120,24 @@ impl SessionClient {
         Ok(parse_search(&value))
     }
 
+    /// 把一行内核命令交给会话（`commands/execute`）。
+    ///
+    /// 内核自己注册的命令（`/compact` 等）只有它能解释；前端不猜语义，只转发。
+    /// 附件位传空数组 —— 附件要 `file-upload`（0.2.2），当前内核没有。
+    pub async fn execute_command(&self, session_id: &str, line: &str) -> Result<(), RemoteError> {
+        self.rpc
+            .call(
+                "commands/execute",
+                json!({
+                    "agentId": session_id,
+                    "line": line,
+                    "submittedAttachments": [],
+                }),
+            )
+            .await?;
+        Ok(())
+    }
+
     /// 打开转发事件流。审批请求走这条流（见 `events.rs`）。
     pub async fn subscribe_events(&self) -> Result<EventSubscription, RemoteError> {
         EventSubscription::open(&self.mux).await

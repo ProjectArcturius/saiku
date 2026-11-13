@@ -55,6 +55,16 @@ pub enum Command {
         request_id: String,
         outcome: ApprovalOutcome,
     },
+    /// 把一行**内核命令**原样交给后端（`/compact`、`/goal` 这类 DSH 侧注册的命令）。
+    ///
+    /// 产品层不复制内核的命令表：DSH 加一条命令，前端不需要改代码就能用。
+    /// 前端自己的命令（`/new`、`/runs` …）在到达这里之前就被 TUI 截住了；
+    /// 只有内核认识的才走这条。
+    KernelCommand {
+        #[serde(default)]
+        session_id: Option<String>,
+        line: String,
+    },
     /// 收掉后端（进程内：TUI 退出时）。IPC 上只断开本连接，不关服务。
     Shutdown,
     #[serde(other)]
@@ -155,6 +165,23 @@ mod tests {
         let raw = serde_json::to_string(&event).unwrap();
         assert!(raw.contains(r#""event":"backend""#) && raw.contains(r#""state":"failed""#), "{raw}");
         assert_eq!(serde_json::from_str::<Event>(&raw).unwrap(), event);
+    }
+
+    /// 内核命令走一条通用通道：`{op: kernel_command, session_id, line}`。
+    /// 旧前端不认识它时按 `Unknown` 收下（`#[serde(other)]`），不会整条连接失败。
+    #[test]
+    fn kernel_commands_round_trip_and_are_ignorable_by_older_frontends() {
+        let command = Command::KernelCommand { session_id: Some("s1".into()), line: "/compact".into() };
+        let raw = serde_json::to_string(&command).unwrap();
+        assert!(raw.contains(r#""op":"kernel_command""#), "{raw}");
+        assert_eq!(serde_json::from_str::<Command>(&raw).unwrap(), command);
+
+        let older = serde_json::from_str::<Command>(r#"{"op":"kernel_command","line":"/compact"}"#).unwrap();
+        assert_eq!(
+            older,
+            Command::KernelCommand { session_id: None, line: "/compact".into() },
+            "session_id 可省略"
+        );
     }
 
     #[test]

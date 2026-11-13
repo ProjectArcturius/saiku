@@ -1591,10 +1591,27 @@ impl App {
                     self.execute(parsed.entry.action, parsed.arg.as_deref(), requests)
                 }
                 None => {
+                    // 不是 Saiku 的命令 → 原样交给内核（`/compact` 这类是 DSH 注册的）。
+                    // 产品层不复制内核的命令表：DSH 加一条，前端不用改代码就能用。
                     let name = text.split_whitespace().next().unwrap_or("/");
-                    self.notice = format!(
-                        "未知命令 `{name}`；Ctrl+P 查看命令，/help 查看键位"
-                    );
+                    match &self.session_id {
+                        Some(id) => {
+                            let _ = requests.send(Request::Session(
+                                saiku_core::service::Command::KernelCommand {
+                                    session_id: Some(id.clone()),
+                                    line: text.clone(),
+                                },
+                            ));
+                            self.notice = format!(
+                                "已交给内核：{name}（Ctrl+P 看 Saiku 自己的命令；打错了内核会回报）"
+                            );
+                        }
+                        None => {
+                            self.notice = format!(
+                                "未知命令 `{name}`；还没有会话，无法转给内核。Ctrl+P 查看命令"
+                            );
+                        }
+                    }
                     false
                 }
             };
@@ -4122,6 +4139,37 @@ mod tests {
         assert!(app.preferences.stash.is_empty());
         let saved = serde_json::to_string(&app.preferences).unwrap();
         assert!(saved.contains("\"stash\""), "暂存跟偏好一起落盘：{saved}");
+    }
+
+    /// 内核命令（`/compact` 这类）不在 Saiku 的命令表里：原样转发，不假装认识。
+    #[test]
+    fn an_unknown_slash_command_is_forwarded_to_the_kernel() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut app = app();
+        ready(&mut app);
+        app.session_id = Some("s1".into());
+        app.editor.insert("/compact");
+        app.submit(&tx);
+        match rx.recv().unwrap() {
+            Request::Session(saiku_core::service::Command::KernelCommand { session_id, line }) => {
+                assert_eq!(session_id.as_deref(), Some("s1"));
+                assert_eq!(line, "/compact");
+            }
+            other => panic!("应转发给内核：{other:?}"),
+        }
+        assert!(app.notice.contains("/compact"), "{}", app.notice);
+    }
+
+    /// 没有会话就没有可转发的对象：说清楚，而不是假装发出去了。
+    #[test]
+    fn an_unknown_slash_command_without_a_session_says_so() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut app = app();
+        ready(&mut app);
+        app.editor.insert("/compact");
+        app.submit(&tx);
+        assert!(app.notice.contains("无法转给内核"), "{}", app.notice);
+        assert!(rx.try_recv().is_err());
     }
 
     /// `/pools`：容量账本在状态目录里，TUI 只读它 —— 派不出去时第一眼要看的就是这里。

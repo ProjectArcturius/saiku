@@ -261,6 +261,25 @@ async fn run(input: ServiceInput, mut commands: mpsc::UnboundedReceiver<Command>
                     send(Event::Notice { level: NoticeLevel::Error, text });
                 }
             }
+            Command::KernelCommand { session_id, line } => {
+                let Some(id) = session_id.or_else(|| pumps.keys().next().cloned()) else {
+                    send(Event::Notice {
+                        level: NoticeLevel::Warning,
+                        text: format!("`{line}` 要一个已打开的会话；先发一条消息再试"),
+                    });
+                    continue;
+                };
+                match client.execute_command(&id, &line).await {
+                    Ok(()) => send(Event::Notice {
+                        level: NoticeLevel::Info,
+                        text: format!("已交给内核：{line}"),
+                    }),
+                    Err(error) => send(Event::Notice {
+                        level: NoticeLevel::Error,
+                        text: format!("内核没有执行 `{line}`：{error}"),
+                    }),
+                }
+            }
             Command::CloseSession { session_id } => close_pump(&mut pumps, &session_id).await,
             Command::Prompt { session_id, text, model } => {
                 let session_id = match session_id {
