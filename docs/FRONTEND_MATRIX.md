@@ -25,7 +25,7 @@
 | 子 agent | `subagent`、`subagent-fork/spawn`、`client-ui-subagent` | 有（`/subagents` 只读跳转） | 半（内核自建） | F3 | 缺「从 TUI 派一个子 agent」；无该能力时按钮禁掉 |
 | Agent team（多角色协作） | `agent-team`、`tool-agent-team`（0.2.2 新增） | 无 | 无 | F3 | 先探测包在不在，再决定是否显示 |
 | 技能（skills） | `skill`、`skill-filesystem`、`skill-office` | 无 | 无 | F3 | 无入口，不显示 |
-| 图片 / 文件附件 | `file-upload`、`client-file-upload` | 无（客户端已能上传，缺入口） | 无 | F4 | `SessionClient::upload_file` 已实现并**真内核实测**（base64 请求 → 回执）。缺的是 TUI 入口（`/attach`）与把回执带进 prompt/命令；图片还需要 GA 的 vision 门槛判断 |
+| 文件附件 | `file-upload`、`client-file-upload` | **有**（`/attach <路径>` 上传 → 页脚 `📎 N` → 下一条消息带 `{type:"file",receiptId}`） | 无 | F4 完成（文件） | 上限 20 MB；`/detach` 清空。**图片**还没走：内核支持 `{type:"image",data}` 直传，需要先按 GA 的 vision 能力拒绝不支持的池子 |
 | `@` 文件引用 | `file-reference-local` | 有（`@` 补全 + `@"带空格"` 语法与内核 `formatFileMention` 一致） | 无 | F4 | 内核没有该包时退化成纯文本路径（模型只能自己读文件） |
 | 交付物 / 展示 | `present`、`deliverable-file-references` | 无 | 无 | F4 | 无入口 |
 | Office（docx/xlsx/pptx） | `office-kit`、`tool-office` | 无 | 无 | F4 | 无入口；不要假装能读 |

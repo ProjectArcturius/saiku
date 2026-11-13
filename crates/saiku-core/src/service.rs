@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::conversation::{
     ApprovalOutcome, ApprovalRequest, Conversation, ModelCatalog, ModelChoice, SearchHit,
-    SessionSummary,
+    SessionSummary, UploadedFile,
 };
 
 /// 协议主版本。改义或删除字段时加一；只「加」不算。
@@ -41,6 +41,10 @@ pub enum Command {
         text: String,
         #[serde(default)]
         model: Option<ModelChoice>,
+        /// 已经暂存好的附件（`/attach` 上传得到的回执）。旧后端收到这个字段时
+        /// 不认识就忽略 —— 契约规则：只加不改。
+        #[serde(default)]
+        attachments: Vec<UploadedFile>,
     },
     /// 取消这个会话当前这一轮。
     Cancel { session_id: String },
@@ -72,6 +76,12 @@ pub enum Command {
     ListKernelCommands {
         #[serde(default)]
         session_id: Option<String>,
+    },
+    /// 把一个本地文件暂存到内核（`fileUploads/upload`），回 [`Event::Attached`]。
+    AttachFile {
+        #[serde(default)]
+        session_id: Option<String>,
+        path: String,
     },
     /// 回答一条 [`Event::Question`]。`answers` 按题 id 回填；跳过某题就留空 `selected`。
     AnswerQuestion {
@@ -119,6 +129,8 @@ pub enum Event {
     Search { query: String, items: Vec<SearchHit> },
     /// 内核注册的人类命令。`name` 不带前导斜杠（与内核一致）。
     KernelCommands { items: Vec<KernelCommandInfo> },
+    /// 一个文件已经暂存好（`/attach` 的结果）。回执只在当前会话有效。
+    Attached { file: UploadedFile },
     /// 内核在问人：一道或多道题，**不回答就会一直等**（`ask_user_question`）。
     Question {
         request: crate::conversation::QuestionRequest,
@@ -191,7 +203,7 @@ mod tests {
 
     #[test]
     fn commands_and_events_round_trip_as_tagged_json() {
-        let command = Command::Prompt { session_id: None, text: "你好".into(), model: None };
+        let command = Command::Prompt { session_id: None, text: "你好".into(), model: None, attachments: Vec::new() };
         let raw = serde_json::to_string(&command).unwrap();
         assert!(raw.contains(r#""op":"prompt""#), "{raw}");
         assert_eq!(serde_json::from_str::<Command>(&raw).unwrap(), command);
@@ -241,6 +253,23 @@ mod tests {
         let raw = serde_json::to_string(&command).unwrap();
         assert!(raw.contains(r#""op":"answer_question""#), "{raw}");
         assert_eq!(serde_json::from_str::<Command>(&raw).unwrap(), command);
+    }
+
+    /// 附件走两条命令：`attach_file` 上传、`prompt.attachments` 携带回执。
+    #[test]
+    fn attachment_commands_round_trip() {
+        use crate::conversation::UploadedFile;
+        let command = Command::AttachFile { session_id: Some("s1".into()), path: "a.txt".into() };
+        let raw = serde_json::to_string(&command).unwrap();
+        assert!(raw.contains(r#""op":"attach_file""#), "{raw}");
+        assert_eq!(serde_json::from_str::<Command>(&raw).unwrap(), command);
+
+        let event = Event::Attached {
+            file: UploadedFile { receipt_id: "r".into(), attachment_id: "sha".into(), name: "a".into(), bytes: 1 },
+        };
+        let raw = serde_json::to_string(&event).unwrap();
+        assert!(raw.contains(r#""event":"attached""#), "{raw}");
+        assert_eq!(serde_json::from_str::<Event>(&raw).unwrap(), event);
     }
 
     #[test]

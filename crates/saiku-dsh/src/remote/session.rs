@@ -81,7 +81,12 @@ impl SessionClient {
     /// 发一条消息。返回客户端铸的 `requestId` —— 内核把它记在那条用户消息的 `source.rpcId` 上。
     ///
     /// 回执只表示「进了收件箱」，不表示答完了：要看 follow 流里的 `turn/end`。
-    pub async fn prompt(&self, session_id: &str, text: &str) -> Result<String, RemoteError> {
+    pub async fn prompt(
+        &self,
+        session_id: &str,
+        text: &str,
+        attachments: &[saiku_core::conversation::UploadedFile],
+    ) -> Result<String, RemoteError> {
         let request_id = format!(
             "saiku-{}-{}-{}",
             std::process::id(),
@@ -99,7 +104,7 @@ impl SessionClient {
                     "sessionId": session_id,
                     // `queue`：正在跑时排到下一轮；`steer` 会插进当前轮，那是另一个交互，首版不做。
                     "mode": "queue",
-                    "content": [{ "type": "text", "text": text }],
+                    "content": prompt_content(text, attachments),
                 } }),
             )
             .await?;
@@ -445,6 +450,21 @@ fn parse_commands(value: &Value) -> Result<Vec<saiku_core::service::KernelComman
         .collect())
 }
 
+/// 一条 prompt 的 content：正文 + 已暂存文件的回执。
+///
+/// 附件用 `{type:"file", receiptId}`（内核按回执取暂存内容，不重传字节）。
+/// 正文为空但带附件也是合法的 —— 内核接受「只有附件」的消息。
+fn prompt_content(text: &str, attachments: &[saiku_core::conversation::UploadedFile]) -> Value {
+    let mut parts = Vec::new();
+    if !text.trim().is_empty() {
+        parts.push(json!({ "type": "text", "text": text }));
+    }
+    for file in attachments {
+        parts.push(json!({ "type": "file", "receiptId": file.receipt_id }));
+    }
+    Value::Array(parts)
+}
+
 /// `fileUploads/upload` 的返回值 → 中立类型。字段全在就要求全在，缺了就是协议问题。
 fn parse_upload(value: &Value) -> Result<saiku_core::conversation::UploadedFile, RemoteError> {
     let receipt = value["receiptId"].as_str().filter(|id| !id.is_empty());
@@ -505,7 +525,7 @@ mod tests {
                 RemoteRpc::new(&rpc.origin(), &cookie).unwrap(),
                 RemoteMux::connect_to(&mux.origin(), mux.port(), &cookie).await.unwrap(),
             );
-            ids.push(client.prompt("restored-session", "next turn").await.unwrap());
+            ids.push(client.prompt("restored-session", "next turn", &[]).await.unwrap());
             let raw = rpc.request().await.unwrap();
             let body: Value = serde_json::from_str(raw.split_once("\r\n\r\n").unwrap().1).unwrap();
             assert_eq!(body["payload"]["args"]["request"]["requestId"], *ids.last().unwrap());

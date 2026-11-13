@@ -159,6 +159,8 @@ pub(crate) struct App {    pub boot: Boot,
     question: Option<QuestionState>,
     /// 排队等着的提问（先来先答；同时出现多道题的少见，但不能丢）。
     question_queue: Vec<saiku_core::conversation::QuestionRequest>,
+    /// 已暂存、随下一条消息发出去的附件（`/attach` 的结果）。
+    pub attachments: Vec<saiku_core::conversation::UploadedFile>,
     /// 下一次请求要用的模型。启动时来自配置，模型对话框改动它。
     pub model: Option<ModelRef>,
     pub model_prefs: ModelPrefs,
@@ -283,6 +285,7 @@ impl App {
             kernel_stale: true,
             question: None,
             question_queue: Vec::new(),
+            attachments: Vec::new(),
             theme,
             editor,
             runs: Vec::new(),
@@ -495,6 +498,13 @@ impl App {
                     }
                     self.conversation = Some(*conversation);
                 }
+            }
+            E::Attached { file } => {
+                self.attachments.push(file.clone());
+                self.notice = format!(
+                    "已附上 {}（{} 字节），下一条消息一起发；/detach 清空",
+                    file.name, file.bytes
+                );
             }
             E::Question { request } => {
                 if self.question.is_some() || self.dialog.is_some() {
@@ -1019,6 +1029,24 @@ impl App {
                     let _ = requests.send(Request::Session(Command::ListSessions));
                     self.open_dialog(Dialog::Subagents);
                 }
+            }
+            Action::Attach => match (arg.map(str::trim), &self.session_id) {
+                (Some(path), Some(id)) if !path.is_empty() => {
+                    let _ = requests.send(Request::Session(
+                        saiku_core::service::Command::AttachFile {
+                            session_id: Some(id.clone()),
+                            path: path.to_string(),
+                        },
+                    ));
+                    self.notice = format!("正在上传 {path}…");
+                }
+                (Some(_), None) => self.notice = "附件要一个已打开的会话；先发一条消息".into(),
+                _ => self.notice = "用法：/attach <路径>".into(),
+            },
+            Action::Detach => {
+                let count = self.attachments.len();
+                self.attachments.clear();
+                self.notice = format!("已清空 {count} 个待发附件");
             }
             Action::Kernel => match &self.session_id {
                 Some(id) => {
@@ -1811,7 +1839,8 @@ impl App {
             effort: self.effort.clone(),
         });
         let queued = self.conversation_running();
-        let command = Command::Prompt { session_id: self.session_id.clone(), text: text.clone(), model };
+        let attachments = std::mem::take(&mut self.attachments);
+        let command = Command::Prompt { session_id: self.session_id.clone(), text: text.clone(), model, attachments };
         if requests.send(Request::Session(command)).is_err() {
             self.notice = "执行端已断开".into();
             return false;
@@ -4151,7 +4180,7 @@ mod tests {
         let (tx, rx) = mpsc::channel();
         app.editor.insert("第一问");
         app.input(key(KeyCode::F(6)), &tx);
-        let Request::Session(Command::Prompt { session_id, text, model }) = rx.recv().unwrap() else {
+        let Request::Session(Command::Prompt { session_id, text, model, .. }) = rx.recv().unwrap() else {
             panic!("交互内核就绪时提交应当走会话")
         };
         assert_eq!(session_id, None, "没有当前会话：由服务新建");
@@ -4363,6 +4392,58 @@ mod tests {
         assert!(app.preferences.stash.is_empty());
         let saved = serde_json::to_string(&app.preferences).unwrap();
         assert!(saved.contains("\"stash\""), "暂存跟偏好一起落盘：{saved}");
+    }
+
+    /// `/attach` 只把路径交给后端（上传在后端做），回执到了才记进待发；
+    /// 下一条消息带上它，发完清空。
+    #[test]
+    fn attach_uploads_then_rides_the_next_message() {
+        use saiku_core::conversation::UploadedFile;
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut app = app();
+        ready(&mut app);
+        app.session_id = Some("s1".into());
+        let _ = app.execute(Action::Attach, Some("notes/a.txt"), &tx);
+        match rx.recv().unwrap() {
+            Request::Session(saiku_core::service::Command::AttachFile { session_id, path }) => {
+                assert_eq!(session_id.as_deref(), Some("s1"));
+                assert_eq!(path, "notes/a.txt");
+            }
+            other => panic!("应上传：{other:?}"),
+        }
+
+        app.update(Update::Session(saiku_core::service::Event::Attached {
+            file: UploadedFile {
+                receipt_id: "r1".into(),
+                attachment_id: "sha".into(),
+                name: "a.txt".into(),
+                bytes: 12,
+            },
+        }));
+        assert_eq!(app.attachments.len(), 1);
+        assert!(app.notice.contains("a.txt"), "{}", app.notice);
+
+        app.editor.insert("看这个文件");
+        app.submit(&tx);
+        match rx.recv().unwrap() {
+            Request::Session(saiku_core::service::Command::Prompt { attachments, .. }) => {
+                assert_eq!(attachments[0].receipt_id, "r1");
+            }
+            other => panic!("应发消息：{other:?}"),
+        }
+        assert!(app.attachments.is_empty(), "发出去之后要清空");
+    }
+
+    #[test]
+    fn detach_clears_pending_attachments() {
+        use saiku_core::conversation::UploadedFile;
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let mut app = app();
+        ready(&mut app);
+        app.attachments.push(UploadedFile { receipt_id: "r1".into(), ..Default::default() });
+        let _ = app.execute(Action::Detach, None, &tx);
+        assert!(app.attachments.is_empty());
+        assert!(app.notice.contains("清空"), "{}", app.notice);
     }
 
     /// 内核提问必须立刻出现在屏幕上：不回答，这一轮就停在那里。

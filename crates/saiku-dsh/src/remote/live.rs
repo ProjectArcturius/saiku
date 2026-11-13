@@ -530,7 +530,7 @@ async fn remote_live_a_question_is_answered_through_the_waterfall() {
         .await
         .expect("选模型");
     let mut subscription = client.subscribe_events().await.expect("订阅事件");
-    client.prompt(&session, "请向我提问").await.expect("发 prompt");
+    client.prompt(&session, "请向我提问", &[]).await.expect("发 prompt");
 
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
     let mut answered = false;
@@ -664,7 +664,7 @@ async fn remote_live_an_approval_lets_the_tool_run() {
         .await
         .expect("选模型");
     let mut subscription = client.subscribe_events().await.expect("订阅事件");
-    client.prompt(&session, "写个文件").await.expect("发 prompt");
+    client.prompt(&session, "写个文件", &[]).await.expect("发 prompt");
 
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
     let mut approved = false;

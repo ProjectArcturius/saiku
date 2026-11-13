@@ -335,6 +335,16 @@ fn footer_row(frame: &mut Frame, app: &App, area: Rect, t: &Theme) {
             Style::default().fg(warning(t)),
         ));
     }
+    // 待发附件：发出去之前一直看得见，避免「附了但忘了发」。
+    if !app.attachments.is_empty() {
+        if !left.is_empty() {
+            left.push(Span::raw("  "));
+        }
+        left.push(Span::styled(
+            format!("📎 {}", app.attachments.len()),
+            Style::default().fg(accent(t)),
+        ));
+    }
     // 目标：常驻的左栏片段。它比通知重要 —— 通知会消失，而「这条会话还在为目标跑」
     // 是用户决定要不要等下去的依据（docs/GOAL_MODE.md）。
     if let Some(goal) = app.conversation.as_ref().and_then(|c| c.goal.as_ref()) {

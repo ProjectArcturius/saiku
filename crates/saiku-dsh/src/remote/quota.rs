@@ -253,7 +253,7 @@ async fn remote_quota_one_turn_through_the_session_client() {
     let mut open = client.open(&id).await.unwrap();
     // 只看「这一轮」新增的部分（P16 第三条）：发之前记下条数。
     let before = open.view().messages.len();
-    client.prompt(&id, "只回复两个字：收到").await.unwrap();
+    client.prompt(&id, "只回复两个字：收到", &[]).await.unwrap();
 
     let deadline = Instant::now() + Duration::from_secs(150);
     let mut saw_streaming = false;

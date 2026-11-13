@@ -307,6 +307,57 @@ async fn run(input: ServiceInput, mut commands: mpsc::UnboundedReceiver<Command>
                     }),
                 }
             }
+            Command::AttachFile { session_id, path } => {
+                let Some(id) = session_id.or_else(|| pumps.keys().next().cloned()) else {
+                    send(Event::Notice {
+                        level: NoticeLevel::Warning,
+                        text: "附件要一个已打开的会话；先发一条消息再试".into(),
+                    });
+                    continue;
+                };
+                // 上限按「模型能吃下的」倒推：一次上传 20 MB 已经远超任何上下文窗口，
+                // 再大只会把内核的 base64 校验撑爆，而且这里读的是整份文件。
+                const MAX_ATTACH_BYTES: u64 = 20 * 1024 * 1024;
+                let meta = std::fs::metadata(&path);
+                match meta {
+                    Ok(meta) if meta.len() > MAX_ATTACH_BYTES => {
+                        send(Event::Notice {
+                            level: NoticeLevel::Warning,
+                            text: format!("`{path}` 有 {} MB，超过 20 MB 上限", meta.len() / 1024 / 1024),
+                        });
+                        continue;
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        send(Event::Notice {
+                            level: NoticeLevel::Error,
+                            text: format!("读不到 `{path}`：{error}"),
+                        });
+                        continue;
+                    }
+                }
+                let bytes = match std::fs::read(&path) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        send(Event::Notice {
+                            level: NoticeLevel::Error,
+                            text: format!("读不到 `{path}`：{error}"),
+                        });
+                        continue;
+                    }
+                };
+                let name = std::path::Path::new(&path)
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "attachment".into());
+                match client.upload_file(&id, &bytes, &name).await {
+                    Ok(file) => send(Event::Attached { file }),
+                    Err(error) => send(Event::Notice {
+                        level: NoticeLevel::Error,
+                        text: format!("上传 `{name}` 失败：{error}"),
+                    }),
+                }
+            }
             Command::KernelCommand { session_id, line } => {
                 let Some(id) = session_id.or_else(|| pumps.keys().next().cloned()) else {
                     send(Event::Notice {
@@ -327,7 +378,7 @@ async fn run(input: ServiceInput, mut commands: mpsc::UnboundedReceiver<Command>
                 }
             }
             Command::CloseSession { session_id } => close_pump(&mut pumps, &session_id).await,
-            Command::Prompt { session_id, text, model } => {
+            Command::Prompt { session_id, text, model, attachments } => {
                 let session_id = match session_id {
                     Some(id) => id,
                     None => match client.create(&workspace).await {
@@ -375,7 +426,7 @@ async fn run(input: ServiceInput, mut commands: mpsc::UnboundedReceiver<Command>
                         }
                     }
                 }
-                if let Err(error) = client.prompt(&session_id, &text).await {
+                if let Err(error) = client.prompt(&session_id, &text, &attachments).await {
                     send(Event::Notice { level: NoticeLevel::Error, text: format!("发送失败：{error}") });
                 }
             }

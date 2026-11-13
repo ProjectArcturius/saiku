@@ -74,7 +74,7 @@ async fn remote_live_cancel_tool_then_immediately_prompt() {
             if matches!(event, Event::Backend { state: BackendState::Ready { .. } }) { break }
             if let Event::Backend { state: BackendState::Failed { reason } } = event { panic!("{reason}") }
         }
-        handle.commands.send(Command::Prompt { session_id: None, text: "run the tool".into(), model: Some(model.clone()) }).unwrap();
+        handle.commands.send(Command::Prompt { session_id: None, text: "run the tool".into(), model: Some(model.clone()), attachments: Vec::new() }).unwrap();
         let mut session = None;
         while let Some(event) = handle.events.recv().await {
             match event {
@@ -89,7 +89,7 @@ async fn remote_live_cancel_tool_then_immediately_prompt() {
         tokio::time::sleep(Duration::from_millis(300)).await;
         // 不等 turn/end：用户可以在工具中止期间立即输入下一轮。
         handle.commands.send(Command::Cancel { session_id: id.clone() }).unwrap();
-        handle.commands.send(Command::Prompt { session_id: Some(id.clone()), text: "continue".into(), model: Some(model.clone()) }).unwrap();
+        handle.commands.send(Command::Prompt { session_id: Some(id.clone()), text: "continue".into(), model: Some(model.clone()), attachments: Vec::new() }).unwrap();
         while let Some(event) = handle.events.recv().await {
             match event {
                 Event::Conversation { conversation } if !conversation.running && conversation.messages.iter().any(|m| matches!(m,
@@ -138,6 +138,7 @@ async fn remote_live_cancel_tool_then_immediately_prompt() {
             session_id: Some(id),
             text: "after reconnect".into(),
             model: Some(model),
+            attachments: Vec::new(),
         })
         .unwrap();
     let resumed = tokio::time::timeout(Duration::from_secs(45), async {

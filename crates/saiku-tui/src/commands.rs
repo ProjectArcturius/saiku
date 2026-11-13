@@ -41,6 +41,10 @@ pub(crate) enum Action {
     Pools,
     /// 内核注册的人类命令（`/compact` 等）：列出并插入输入框。
     Kernel,
+    /// 把本地文件暂存到内核，随下一条消息发出。
+    Attach,
+    /// 清空待发附件。
+    Detach,
     /// 暂存当前草稿；输入框为空时列出暂存的草稿取回。
     Stash,
     /// 还有哪几条审批在等回答。
@@ -295,6 +299,30 @@ pub(crate) const ENTRIES: &[Entry] = &[
         title: "子 agent 会话（打开 / 回到父会话）",
         category: Category::Session,
         slash: Some("/subagents"),
+        arg: None,
+        keys: &[],
+        context: Context::Composer,
+        unavailable: None,
+        palette: true,
+    },
+    Entry {
+        action: Action::Attach,
+        id: "session.attach",
+        title: "附上文件（随下一条消息发送）",
+        category: Category::Session,
+        slash: Some("/attach"),
+        arg: Some("<路径>"),
+        keys: &[],
+        context: Context::Composer,
+        unavailable: None,
+        palette: true,
+    },
+    Entry {
+        action: Action::Detach,
+        id: "session.detach",
+        title: "清空待发附件",
+        category: Category::Session,
+        slash: Some("/detach"),
         arg: None,
         keys: &[],
         context: Context::Composer,
