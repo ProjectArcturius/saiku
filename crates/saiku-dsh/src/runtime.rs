@@ -117,9 +117,12 @@ pub struct PatchInput<'a> {
     pub session_search: bool,
     /// 摘掉**会停下来等人**的工具（`ask_user`）。
     ///
-    /// 0.2.2 起内核多了一个"问人"的工具：夜班没人答、headless 更没人答，工人会停在
-    /// 一个永远不会有回答的问题上。0.2.1 没有这一行，写了只会让内核打印
-    /// `patch: entry not found`，所以调用方按版本判断（`contract::version_at_least`）。
+    /// 摘掉"问人"的工具（`tool-ask-user`）。夜班没人答、headless 更没人答，工人会停在
+    /// 一个永远不会有回答的问题上。
+    ///
+    /// **不是版本特性**：一度以为 0.2.1 没有这一行、只对 0.2.2 生效，2026-11-13 实测
+    /// 0.2.1 的 web profile 里就有（嵌套在工具门控里，顶层 diff 看不到）。现在两个调用方
+    /// 都传 `true`，等 F5 的应答 UI 接上再按能力打开。
     pub blocking_tools: bool,
 }
 

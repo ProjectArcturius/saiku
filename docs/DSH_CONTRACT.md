@@ -68,6 +68,22 @@ saiku dsh doctor --version 0.2.2-rc.2          # 115 行 / 113 包，17 个必�
 结论：0.2.2 具备**升级候选**资格。升级还需两步：一次真模型冒烟（用 GA 里最便宜的账户），
 以及决定是否同批接 F4 附件与 F5 ask_user 应答。
 
+### 更正：F4 附件与 F5 ask_user **不是版本门槛**（2026-11-13 实测）
+
+此前记成「0.2.1 没有 `file-upload` / `user-questions`，要等 0.2.2」。实测推翻了这个说法：
+
+- 0.2.1 的 web profile 里 `user-questions`、`file-upload` 都已经加载，`tool-ask-user`
+  也在工具门控里（嵌套位置，顶层行 diff 看不到）；
+- 真内核上 `userQuestions/answer` 回 `session/not-found`、`fileUploads/upload` 回
+  `gateway/input-invalid` —— 都是**端点存在**的错，而不是 404。
+
+代价是这条错误认识让交互会话按「0.2.2 才有」门控 ask_user，于是在钉住的 0.2.1 上
+把会等人的工具放了出来。已改为两个入口一律摘掉（`blocking_tools: true`），
+等 F5 的应答 UI 接上再按能力打开。新增 live 用例
+`remote_live_attachment_and_question_endpoints_exist` 专门盯这件事。
+
+结论：F4/F5 的进度只取决于 Saiku 侧的 UI 与事件映射，**不取决于升级**。
+
 ### 命令通道：在两个真内核上都实测过（2026-11-13）
 
 `commands/list` 与 `commands/execute` 不经过模型，所以在**不消耗配额**的前提下就能验形状：

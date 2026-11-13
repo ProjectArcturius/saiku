@@ -117,9 +117,10 @@ pub fn interactive(input: InteractiveInput<'_>) -> SpecResult<InteractiveLaunch>
             session_log_upload: cfg.runtime.session_log_upload,
             guard: &guard,
             session_search: true,
-            // 交互面暂时也没有 ask_user 的应答 UI；装上就是一个会永远等下去的问题。
-            // F5 做完应答再打开（docs/FRONTEND_MATRIX.md）。
-            blocking_tools: crate::contract::version_at_least(&cfg.dsh_version(), "0.2.2"),
+            // 交互面还没有 ask_user 的应答 UI；装上就是一个会干等到超时的问题。
+            // **与版本无关**：0.2.1 的 web profile 里就已经有 `tool-ask-user`（2026-11-13 实测），
+            // 原来按版本门控等于在钉住的版本上把它放了出来。F5 做完应答再改回 false。
+            blocking_tools: true,
         },
         &extra,
     );

@@ -310,7 +310,9 @@ fn dsh_runtime_command(input: DshCommandInput<'_>) -> Result<RuntimeCommand, Spe
         session_log_upload: input.session_log_upload,
         session_search: false,
         // headless 永远没人回答 ask_user；0.2.2 起这一行才存在，低版本写了会报 not found。
-        blocking_tools: saiku_dsh::contract::version_at_least(input.version, "0.2.2"),
+        // headless 没有人能回答提问：`ask_user` 必须摘掉，否则整次运行会干等到超时。
+        // 这一条**与版本无关**（0.2.1 就已经有该工具，参 docs/FRONTEND_MATRIX.md F5）。
+        blocking_tools: true,
         guard: &guard,
     });
 

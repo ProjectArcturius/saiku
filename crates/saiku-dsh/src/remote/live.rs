@@ -379,3 +379,64 @@ async fn remote_live_commands_answer_the_kernel_registry() {
     let mut kernel = kernel;
     shutdown_and_confirm(&mut kernel, "命令通道之后").await;
 }
+
+
+/// 附件与提问的 **Remote 端点是否存在**（能力探测，不做 UI）。
+///
+/// 这两件事一度被记成「要 0.2.2 才有」——实测 0.2.1 的 web profile 里
+/// `user-questions` 与 `file-upload` 都已经加载。这条用例只回答「端点在不在」：
+/// 用**必然失败的参数**去调，404 才算不存在；参数错、找不到调用，都说明端点是真的。
+#[tokio::test]
+#[ignore = "起真内核，需要本机已安装 DSH 运行时"]
+async fn remote_live_attachment_and_question_endpoints_exist() {
+    let Some((kernel, _home)) =
+        start_kernel("remote_live_attachment_and_question_endpoints_exist").await
+    else {
+        return;
+    };
+    let rpc = RemoteRpc::for_kernel(&kernel).expect("建一元调用句柄");
+
+    let answer = rpc
+        .call(
+            "userQuestions/answer",
+            json!({
+                "agentId": "no-such-agent",
+                "callId": "no-such-call",
+                "answer": { "answers": [] },
+            }),
+        )
+        .await;
+    if let Err(error) = &answer {
+        assert!(
+            !error.to_string().contains("404"),
+            "userQuestions/answer 在这个内核上不存在：{error}"
+        );
+    }
+
+    let upload = rpc
+        .call(
+            "fileUploads/upload",
+            json!({ "agentId": "no-such-agent", "request": {} }),
+        )
+        .await;
+    if let Err(error) = &upload {
+        assert!(
+            !error.to_string().contains("404"),
+            "fileUploads/upload 在这个内核上不存在：{error}"
+        );
+    }
+
+    // 打印真实结果（不看凭据，只看端点的答复）：人工跑时能一眼看出「在/不在」。
+    match &answer {
+        Ok(value) => eprintln!("userQuestions/answer → {value}"),
+        Err(error) => eprintln!("userQuestions/answer → 错误：{error}"),
+    }
+    match &upload {
+        Ok(value) => eprintln!("fileUploads/upload → {value}"),
+        Err(error) => eprintln!("fileUploads/upload → 错误：{error}"),
+    }
+    // 把「能不能用」交给下一层（参数/权限/会话），这里只证存在。
+
+    let mut kernel = kernel;
+    shutdown_and_confirm(&mut kernel, "能力探测之后").await;
+}
