@@ -59,7 +59,20 @@ impl RuntimeLayout {
     }
 
     /// 写一份精确钉版本的 `package.json` 并 `npm install`。输出直接继承给调用者的终端。
-    pub fn install(&self) -> Result<(), String> {
+    ///
+    /// 目录里已经装着**另一个**版本时拒绝覆盖，除非显式 `force`：一次手滑就换掉钉住的
+    /// 运行时，会让所有后续运行在预检里报「版本不一致」，而那些运行是别人的夜班。
+    pub fn install(&self, force: bool) -> Result<(), String> {
+        if let Some(existing) = self.installed_version()
+            && existing != self.version
+            && !force
+        {
+            return Err(format!(
+                "目录 {} 里已经是 DSH {existing}，与要装的 {} 不一致；换 --dir，或确认后加 --force 覆盖",
+                self.dir.display(),
+                self.version
+            ));
+        }
         std::fs::create_dir_all(&self.dir)
             .map_err(|e| format!("建目录 {} 失败：{e}", self.dir.display()))?;
         let manifest = json!({

@@ -1465,23 +1465,26 @@ fn cmd_auth(argv: &[String]) -> CmdResult {
 }
 
 fn cmd_runtime(argv: &[String]) -> CmdResult {
-    let flags = Flags::parse(&argv[argv.len().min(1)..], &["--config", "--version", "--dir"], &[])?;
+    let flags = Flags::parse(
+        &argv[argv.len().min(1)..],
+        &["--config", "--version", "--dir"],
+        &["--force"],
+    )?;
     let cfg = UserConfig::locate_and_load(flags.one("--config").map(Path::new)).ok().map(|(c, _)| c);
+    let explicit_version = flags.one("--version").is_some();
     let version = flags
         .one("--version")
         .map(str::to_string)
         .or_else(|| cfg.as_ref().map(|c| c.dsh_version()))
         .unwrap_or_else(|| userconfig::PINNED_DSH_VERSION.to_string());
-    let dir = flags
-        .one("--dir")
-        .map(PathBuf::from)
-        .or_else(|| cfg.as_ref().map(|c| c.runtime_dir()))
-        .unwrap_or_else(|| userconfig::default_runtime_dir(&version));
+    let dir = runtime_dir(&flags, cfg.as_ref(), &version, explicit_version);
     let layout = RuntimeLayout::new(&dir, &version);
     match argv.first().map(String::as_str) {
         Some("install") => {
             eprintln!("saiku: 安装 @deepseek-ai/dsh@{version} → {}", dir.display());
-            layout.install().map_err(|m| SpecError::new(code::RUNTIME_ENTRY_MISSING, m))?;
+            layout
+                .install(flags.has("--force"))
+                .map_err(|m| SpecError::new(code::RUNTIME_ENTRY_MISSING, m))?;
             println!("DSH {version} 已就绪：{}", layout.entry().display());
             Ok(0)
         }
@@ -1497,6 +1500,24 @@ fn cmd_runtime(argv: &[String]) -> CmdResult {
         },
         Some(other) => Err(SpecError::new(code::CONFIG_INVALID, format!("runtime 不认识 `{other}`（install / status）"))),
     }
+}
+
+/// 运行时目录。**`--version` 一给就换目录** —— 曾经这里先看配置里的
+/// `runtime.dir`，结果 `runtime install --version 0.2.2-rc.2` 把 0.2.2 装进了
+/// 0.2.1 的目录，把钉住的运行时覆盖掉了（2026-11-13 实测）。版本号与目录是绑定的。
+fn runtime_dir(
+    flags: &Flags,
+    cfg: Option<&UserConfig>,
+    version: &str,
+    explicit_version: bool,
+) -> PathBuf {
+    if let Some(dir) = flags.one("--dir") {
+        return PathBuf::from(dir);
+    }
+    if explicit_version {
+        return userconfig::default_runtime_dir(version);
+    }
+    cfg.map(UserConfig::runtime_dir).unwrap_or_else(|| userconfig::default_runtime_dir(version))
 }
 
 fn cmd_config(argv: &[String]) -> CmdResult {

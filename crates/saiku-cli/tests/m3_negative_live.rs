@@ -33,8 +33,14 @@ fn saiku_bin() -> &'static str {
 /// 发请求前就拒（`UNKNOWN_MODEL`），症状离原因很远。
 const MODEL: &str = "fake-model";
 
+/// 这些用例默认跑钉住的版本；`SAIKU_TEST_DSH_VERSION=0.2.2-rc.2` 可以拿同一套用例
+/// 去体检候选内核（见 `docs/DSH_CONTRACT.md` 的升级步骤）。运行时目录随版本走。
+fn test_version() -> String {
+    std::env::var("SAIKU_TEST_DSH_VERSION").unwrap_or_else(|_| PINNED_DSH_VERSION.to_string())
+}
+
 fn runtime_dir() -> PathBuf {
-    saiku_core::userconfig::default_runtime_dir(PINNED_DSH_VERSION)
+    saiku_core::userconfig::default_runtime_dir(&test_version())
 }
 
 /// 钉住的运行时入口。没装就明确报「先装」，不静默跳过 —— live 用例的失败要可解释。
@@ -338,6 +344,7 @@ impl Case {
             // 运行时目录由测试显式给出：不吃本机 `saiku.json` 里的设置。
             "runtime": {
                 "dir": runtime_dir().display().to_string().replace('\\', "/"),
+                "dsh_version": test_version(),
                 "node": "node",
                 "session_log_upload": false,
             },
@@ -364,7 +371,7 @@ impl Case {
                 "kind": "dsh-sdk",
                 "node": "node",
                 "entry": runtime_entry().display().to_string().replace('\\', "/"),
-                "version": PINNED_DSH_VERSION,
+                "version": test_version(),
                 "profile": "sdk",
                 "sandbox": sandbox,
                 "route": {

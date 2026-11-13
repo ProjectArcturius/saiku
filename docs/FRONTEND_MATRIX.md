@@ -24,13 +24,13 @@
 | 子 agent | `subagent`、`subagent-fork/spawn`、`client-ui-subagent` | 有（`/subagents` 只读跳转） | 半（内核自建） | F3 | 缺「从 TUI 派一个子 agent」；无该能力时按钮禁掉 |
 | Agent team（多角色协作） | `agent-team`、`tool-agent-team`（0.2.2 新增） | 无 | 无 | F3 | 先探测包在不在，再决定是否显示 |
 | 技能（skills） | `skill`、`skill-filesystem`、`skill-office` | 无 | 无 | F3 | 无入口，不显示 |
-| 图片 / 文件附件 | `file-upload`、`client-file-upload` | 无 | 无 | F4 | 无 vision 的 GA 必须拒绝读图任务（已有能力门槛） |
+| 图片 / 文件附件 | `file-upload`、`client-file-upload` | 无 | 无 | F4 | **受阻于内核版本**：0.2.1 没有该包；0.2.2 已并存安装并通过契约体检（docs/DSH_CONTRACT.md），升级后即可接 |
 | `@` 文件引用 | `file-reference-local` | 有（`@` 补全 + `@"带空格"` 语法与内核 `formatFileMention` 一致） | 无 | F4 | 内核没有该包时退化成纯文本路径（模型只能自己读文件） |
 | 交付物 / 展示 | `present`、`deliverable-file-references` | 无 | 无 | F4 | 无入口 |
 | Office（docx/xlsx/pptx） | `office-kit`、`tool-office` | 无 | 无 | F4 | 无入口；不要假装能读 |
 | 定时任务 | `schedule`、`tool-schedule`、`client-ui-schedule` | 无 | 无（有 `night` 控制器） | F4 | 显示「用 saiku night」 |
 | 夜班视图（Saiku 自有） | `saiku night` 的落盘状态 | 有（`/night`：完成/在跑/失败码/心跳/整批 token） | 有（`night status`） | — | 控制器从未跑过时明确说「没有记录」 |
-| 提问（ask_user） | `tool-ask-user`、`user-questions`、`client-ui-user-questions` | 无（按版本禁用） | **应禁** | F5 | headless 无人可答。接法已查明：Remote 有 `userQuestions/answer(agentId, callId, answer)` 与 `userQuestions/attachWait`（流式倒计时）；TUI 需要先识别 pending 的 `ask_user_question` 调用，再发答案批次 |
+| 提问（ask_user） | `tool-ask-user`、`user-questions`、`client-ui-user-questions` | 无（0.2.2 起才存在；当前按版本禁用） | **应禁** | F5 | headless 无人可答。接法已查明：Remote 有 `userQuestions/answer(agentId, callId, answer)` 与 `userQuestions/attachWait`；TUI 需先识别 pending 的 `ask_user_question` 调用，再发答案批次。0.2.2 已验证可共存 |
 | 审批（confirm） | `approval`、`user-approval`、`permission` | 有（`/approvals`、confirm 档） | 无（headless 拒绝 confirm） | F5 | 无审批通道时 confirm 档拒绝启动（已有） |
 | 浏览器/网络工具 | `tool-web`、`web-deepseek-api` | 无（内核工具直接可见） | 半（`--permission` 控制） | F6 | — |
 | 模型目录与切换 | `model/selection` | 有（模型对话框） | 有（`--model`） | — | — |

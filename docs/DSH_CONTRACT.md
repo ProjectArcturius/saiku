@@ -47,6 +47,34 @@ saiku dsh doctor --write-contract     # 写/更新 contracts/dsh-<版本>.json
    新增的交互型工具**（`ask_user` 这类在 headless 里必须禁掉，否则工人会停下来等人回答）。
 5. 通过后把 `saiku.json` 的 `runtime.dsh_version` 指过去；旧版本目录保留，回滚就是改回一行。
 
+## 升级体检记录：0.2.1-alpha.2 → 0.2.2-rc.2（2026-11-13）
+
+并存安装（不动当前 pin）：
+
+```sh
+saiku runtime install --version 0.2.2-rc.2     # → runtime/dsh-0.2.2-rc.2
+saiku dsh doctor --version 0.2.2-rc.2          # 115 行 / 113 包，17 个必需行都在
+```
+
+与 0.2.1 快照相比：97 行共有、1 行删除（`tool-subagent-list-agents`）、18 行新增。
+**真会话体检**（假模型端点，不消耗配额，`SAIKU_TEST_DSH_VERSION=0.2.2-rc.2` 跑
+`m3_negative_live`）：17 条里 **15 过 2 败**；两条失败在钉住的 0.2.1 上**同样失败**
+（`full_pwsh_runs_inside` 用的是 PowerShell 语法，Linux 上不成立；`git_commit` 用例的环境前提），
+所以**不构成 0.2.2 的回归**。
+
+通过的关键项：workspace 内写、只读拒绝写、shell 工具不可见（不是「被拒」）、
+`network=false` 摘掉 web/shell、子 agent 无写无 shell、提权按策略拒、会话日志记录 guard 事件。
+
+结论：0.2.2 具备**升级候选**资格。升级还需两步：一次真模型冒烟（用 GA 里最便宜的账户），
+以及决定是否同批接 F4 附件与 F5 ask_user 应答。
+
+### 这次试验暴露并修掉的 bug
+
+`saiku runtime install --version X` 曾经先看配置里的 `runtime.dir`，于是把 X 装进了
+**钉住版本**的目录，直接覆盖了在用的运行时。现在：给了 `--version` 就按版本换目录；
+目录里已有**另一个**版本时 `install` 拒绝覆盖，除非显式 `--force`。
+live 用例也改成读 `SAIKU_TEST_DSH_VERSION`，同一套断言可以体检任何候选版本。
+
 ## 还没做的
 
 - **事件词汇的自动核对**：`--dump-config` 里没有事件名，要把假 provider 会话跑起来断言
