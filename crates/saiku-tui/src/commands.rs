@@ -352,10 +352,10 @@ pub(crate) const ENTRIES: &[Entry] = &[
     Entry {
         action: Action::Night,
         id: "night.status",
-        title: "最近一次夜班（队列、失败码、控制器心跳）",
+        title: "最近一次夜班（队列、失败码、控制器心跳）；/night list 看历史",
         category: Category::Session,
         slash: Some("/night"),
-        arg: None,
+        arg: Some("[list]"),
         keys: &[],
         context: Context::Composer,
         unavailable: None,

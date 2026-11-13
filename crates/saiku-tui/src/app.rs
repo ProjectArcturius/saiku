@@ -1096,6 +1096,26 @@ impl App {
                 },
                 None => self.notice = "用法：/dispatch [--ga 池子] [--need vision] <任务>".into(),
             },
+            Action::Night if matches!(arg.map(str::trim), Some("list" | "all" | "历史")) => {
+                let now = crate::view::now_ms();
+                let reports = saiku_core::night::history(&self.boot.state_root, now, 10);
+                if reports.is_empty() {
+                    self.notice = format!("{} 下还没有夜班记录", self.boot.state_root.join("night").display());
+                } else {
+                    let lines = reports
+                        .iter()
+                        .map(|report| {
+                            format!("{} · {} 前", report.one_line(), crate::view::ago(now, report.updated_at))
+                        })
+                        .collect();
+                    self.open_dialog(Dialog::Viewer(Viewer {
+                        title: "夜班历史".into(),
+                        lines,
+                        scroll: 0,
+                        filter: String::new(),
+                    }));
+                }
+            }
             Action::Night => match saiku_core::night::latest(&self.boot.state_root, crate::view::now_ms()) {
                 Some(report) => {
                     let mut lines = vec![report.one_line(), String::new()];
@@ -4392,6 +4412,32 @@ mod tests {
         assert_eq!(ga.as_deref(), Some("gsh-1"));
         assert!(needs.is_empty());
         assert_eq!(prompt, "跑 cargo test -- --seed");
+    }
+
+    /// `/night list`：最近几次夜班，新的在前 —— 「昨晚」与「前晚」要能分开看。
+    #[test]
+    fn night_list_shows_history_newest_first() {
+        use std::time::{Duration, SystemTime};
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        for (id, minutes) in [("n1", 120u64), ("n2", 30u64)] {
+            let night = root.join("night").join(id);
+            std::fs::create_dir_all(&night).unwrap();
+            let path = night.join("state.json");
+            std::fs::write(&path, format!(r#"{{"run_id":"{id}","tasks":{{"w":{{"state":"done"}}}}}}"#)).unwrap();
+            let stamp = SystemTime::now() - Duration::from_secs(minutes * 60);
+            std::fs::File::options().write(true).open(&path).unwrap().set_modified(stamp).unwrap();
+        }
+        let boot = Boot { state_root: root, ..boot(None, PathBuf::from("unused.json")) };
+        let mut app = App::new(boot, Preferences::default(), ModelPrefs::default());
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let _ = app.execute(Action::Night, Some("list"), &tx);
+        let Some(Dialog::Viewer(viewer)) = &app.dialog else {
+            panic!("应打开历史视图；notice={}，dialog={:?}", app.notice, app.dialog)
+        };
+        assert_eq!(viewer.lines.len(), 2, "{:?}", viewer.lines);
+        assert!(viewer.lines[0].contains("night n2"), "新的在前：{:?}", viewer.lines);
+        assert!(viewer.lines[1].contains("night n1"), "{:?}", viewer.lines);
     }
 
     /// `/night` 从状态根读最近一次夜班：完成/在跑/失败与心跳，一行是结论。

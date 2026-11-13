@@ -42,6 +42,8 @@ pub struct Failure {
 pub struct Report {
     pub dir: PathBuf,
     pub run_id: String,
+    /// `state.json` 的最后修改时间（毫秒）。列表排序与「多久以前」用它。
+    pub updated_at: u64,
     pub counts: Counts,
     /// 控制器最后一次心跳距今；`None` = 从来没写过心跳。
     pub heartbeat_age_ms: Option<u64>,
@@ -176,9 +178,16 @@ pub fn read_dir(dir: &Path, now: u64) -> Option<Report> {
             }
         }
     }
+    let updated_at = std::fs::metadata(dir.join("state.json"))
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
     Some(Report {
         dir: dir.to_path_buf(),
         run_id: state.run_id,
+        updated_at,
         counts,
         heartbeat_age_ms,
         alive,
@@ -187,6 +196,25 @@ pub fn read_dir(dir: &Path, now: u64) -> Option<Report> {
         pending,
         tasks,
     })
+}
+
+/// 最近几次夜班（新的在前，最多 `limit` 次）。`/night list` 与将来 GUI 的历史页用。
+pub fn history(state_root: &Path, now: u64, limit: usize) -> Vec<Report> {
+    let root = state_root.join("night");
+    let mut dirs: Vec<PathBuf> = std::fs::read_dir(&root)
+        .map(|entries| {
+            entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.is_dir())
+                .collect()
+        })
+        .unwrap_or_default();
+    dirs.sort();
+    let mut reports: Vec<Report> = dirs.iter().filter_map(|dir| read_dir(dir, now)).collect();
+    reports.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then(a.run_id.cmp(&b.run_id)));
+    reports.truncate(limit.max(1));
+    reports
 }
 
 /// 状态根下**最新**的一次夜班（按 `state.json` 的 mtime；没有就返回 `None`）。
@@ -269,4 +297,22 @@ mod tests {
         assert_eq!(report.failures[0].code.as_deref(), Some("MODEL_ROUTE"));
         assert_eq!(report.running, vec!["w2".to_string()]);
     }
+    #[test]
+    fn history_is_newest_first_and_bounded() {
+        use std::time::{Duration, SystemTime};
+        let root = tempfile::tempdir().unwrap();
+        for (id, minutes) in [("a", 90u64), ("b", 5u64), ("c", 30u64)] {
+            let dir = root.path().join("night").join(id);
+            std::fs::create_dir_all(&dir).unwrap();
+            let state = dir.join("state.json");
+            std::fs::write(&state, format!(r#"{{"run_id":"{id}","tasks":{{}}}}"#)).unwrap();
+            let stamp = SystemTime::now() - Duration::from_secs(minutes * 60);
+            std::fs::File::options().write(true).open(&state).unwrap().set_modified(stamp).unwrap();
+        }
+        let reports = history(root.path(), 0, 2);
+        assert_eq!(reports.len(), 2, "limit 生效");
+        assert_eq!(reports[0].run_id, "b");
+        assert_eq!(reports[1].run_id, "c");
+    }
+
 }

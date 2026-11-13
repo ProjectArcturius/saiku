@@ -92,7 +92,8 @@ saiku night stop <控制器目录>          # 取消在跑的，不再接新的
 
 TUI 里等价的是 `/night`：读同一个 `state.json` / `heartbeat.json`（判据在
 `saiku-core::night`，只有一份），给出同样的那一行，外加失败任务的原因码、在跑列表，
-以及整批 token（provider 实报，按每件运行的状态文件累加）。
+以及整批 token（provider 实报，按每件运行的状态文件累加）。`/night list` 列出最近十次，
+新的在前 ——「昨晚」和「前晚」要能分开看。
 
 ## 它不管什么
 

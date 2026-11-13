@@ -1196,9 +1196,20 @@ fn popup(frame: &mut Frame, app: &App, dialog: &Dialog, area: Rect, t: &Theme) {
             .filtered_runs()
             .iter()
             .map(|r| {
-                // 用了哪个账户：同一件活重派到别的 key 上时，这一列是唯一线索。
+                // 一屏要能判断「哪件值得点进去」：多久前开始、用了多少 token、哪个账户。
+                let age = if r.started_at == 0 {
+                    String::new()
+                } else {
+                    format!(" · {}", ago(now_ms(), r.started_at))
+                };
+                let tokens = r
+                    .usage
+                    .as_ref()
+                    .and_then(|u| u.total_tokens.or(u.prompt_tokens.zip(u.completion_tokens).map(|(a, b)| a + b)))
+                    .map(|n| format!(" · {}", short_tokens(n)))
+                    .unwrap_or_default();
                 let account = r.account.as_deref().map(|a| format!(" · {a}")).unwrap_or_default();
-                (format!("{} · {} · {}{account}", r.title, r.state, r.health), true)
+                (format!("{} · {} · {}{age}{tokens}{account}", r.title, r.state, r.health), true)
             })
             .collect(),
         Dialog::Subagents => app
@@ -1941,6 +1952,17 @@ fn composer_placeholder(app: &App) -> &'static str {
     }
 }
 
+/// 更短的缩写（一位小数）：列表里 `12.3k` 比 `12345` 好扫。
+pub(crate) fn short_tokens(n: u64) -> String {
+    if n >= 10_000_000 {
+        format!("{:.0}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.1}k", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
+    }
+}
+
 /// 大数缩写：`1_000_000` → `1M`。给能力标签用（`ctx 1M` 比 `ctx 1000000` 好读）。
 pub(crate) fn human_tokens(n: u64) -> String {
     if n >= 1_000_000 {
@@ -1960,7 +1982,7 @@ pub(crate) fn now_ms() -> u64 {
 }
 
 /// 相对时间。会话列表里人要的是「哪一个是我昨天那个」，不是精确时刻。
-fn ago(now: u64, then: u64) -> String {
+pub(crate) fn ago(now: u64, then: u64) -> String {
     if then == 0 || then > now {
         return "时间未知".into();
     }

@@ -30,7 +30,7 @@
 | 交付物 / 展示 | `present`、`deliverable-file-references` | 无 | 无 | F4 | 无入口 |
 | Office（docx/xlsx/pptx） | `office-kit`、`tool-office` | 无 | 无 | F4 | 无入口；不要假装能读 |
 | 定时任务 | `schedule`、`tool-schedule`、`client-ui-schedule` | 无 | 无（有 `night` 控制器） | F4 | 显示「用 saiku night」 |
-| 夜班视图（Saiku 自有） | `saiku night` 的落盘状态 | 有（`/night`：完成/在跑/失败码/心跳/整批 token） | 有（`night status`） | — | 控制器从未跑过时明确说「没有记录」 |
+| 夜班视图（Saiku 自有） | `saiku night` 的落盘状态 | 有（`/night`：完成/在跑/失败码/心跳/整批 token；`/night list` 看最近 10 次） | 有（`night status`） | — | 控制器从未跑过时明确说「没有记录」 |
 | 提问（ask_user） | `tool-ask-user`、`user-questions`、`client-ui-user-questions` | 无（0.2.2 起才存在；当前按版本禁用） | **应禁** | F5 | headless 无人可答。接法已查明：Remote 有 `userQuestions/answer(agentId, callId, answer)` 与 `userQuestions/attachWait`；TUI 需先识别 pending 的 `ask_user_question` 调用，再发答案批次。0.2.2 已验证可共存 |
 | 审批（confirm） | `approval`、`user-approval`、`permission` | 有（`/approvals`、confirm 档） | 无（headless 拒绝 confirm） | F5 | 无审批通道时 confirm 档拒绝启动（已有） |
 | 浏览器/网络工具 | `tool-web`、`web-deepseek-api` | 无（内核工具直接可见） | 半（`--permission` 控制） | F6 | — |
