@@ -39,6 +39,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::json;
 
+use crate::remote::events::Forwarded;
 use crate::remote::host::{find_node, WebKernel, WebKernelOptions};
 use crate::remote::{RemoteFrame, RemoteMux, RemoteRpc, Secret, SessionClient};
 
@@ -439,4 +440,133 @@ async fn remote_live_attachment_and_question_endpoints_exist() {
 
     let mut kernel = kernel;
     shutdown_and_confirm(&mut kernel, "能力探测之后").await;
+}
+
+/// **端到端**：真内核 + 假模型端点，模型提问 → 事件瀑布 → 我们回答 → 模型继续。
+///
+/// 这是 F5 的验收：`ask_user` 在补丁里**没有被摘掉**（`blocking_tools: false`），
+/// 所以这条用例证明的是「界面能答」，而不只是「解析器认得」。
+/// 需要 `--features test-runtime`（假 provider 只在该 feature 下编译）。
+#[cfg(feature = "test-runtime")]
+#[tokio::test]
+#[ignore = "起真内核 + 脚本化模型；需要本机已安装 DSH 运行时"]
+async fn remote_live_a_question_is_answered_through_the_waterfall() {
+    use crate::fake_provider::{Provider, Script};
+    use crate::remote::launch::policy_for;
+    use crate::runtime::{render_patch_with_routes, PatchInput};
+    use saiku_core::authz::Permission;
+    use saiku_core::config::{RouteModel, RouteSpec};
+    use saiku_core::conversation::{ModelChoice, QuestionAnswer};
+    use saiku_core::mode::{AgentId, Mode};
+
+    let Ok(layout) = runtime_layout() else {
+        eprintln!("跳过：本机没有要的运行时");
+        return;
+    };
+    let Some(node) = find_node(&layout.dir) else {
+        eprintln!("跳过：找不到 node");
+        return;
+    };
+
+    let dir = tempfile::tempdir().expect("临时目录");
+    let script = Script::parse(
+        r#"{"responses":[
+            {"blocks":[{"tool":"ask_user_question","arguments":{"questions":[
+                {"id":"pick","question":"选哪个？","options":[{"label":"A"},{"label":"B"}]}
+            ]}}]},
+            {"blocks":[{"text":"收到，按 B 做。"}]}
+        ]}"#,
+    )
+    .expect("脚本该能解析");
+    let provider = Provider::start(script, dir.path().join("provider.jsonl")).expect("起假端点");
+
+    let workspace = dir.path().join("ws");
+    std::fs::create_dir_all(&workspace).expect("建 workspace");
+    let spec = RouteSpec {
+        provider_id: "fake-endpoint".into(),
+        adapter: "pi-ai".into(),
+        api: Some("anthropic-messages".into()),
+        base_url: Some(provider.url()),
+        headers: Default::default(),
+        models: vec![RouteModel { id: "fake-model".into(), name: Some("Fake".into()), context_window: Some(100_000) }],
+        display_name: None,
+        key_env: "DSH_TEST_KEY".into(),
+        key_source: "env:DSH_TEST_KEY".into(),
+        auth_id: None,
+    };
+    let policy = policy_for(Permission::Full, AgentId::Build, Mode::Build, &workspace);
+    let guard = policy.execution_guard(Permission::Full).expect("算 guard");
+    let patch = render_patch_with_routes(
+        &PatchInput {
+            route: &spec,
+            persona_suffix: "",
+            session_log_upload: false,
+            guard: &guard,
+            session_search: false,
+            // **故意不摘** ask_user：这条用例要证明界面真能回答。
+            blocking_tools: false,
+        },
+        &[],
+    );
+    let patch_path = dir.path().join("patch.json");
+    std::fs::write(&patch_path, patch).expect("写 patch");
+
+    let home = tempfile::tempdir().expect("建 DSH_HOME");
+    let mut options = WebKernelOptions::new(node, layout.entry(), home.path());
+    options.patch = Some(patch_path);
+    options.env.insert("DSH_TEST_KEY".into(), "test-key".into());
+    options.cwd = Some(workspace.clone());
+    options.startup_timeout = LIVE_STARTUP_TIMEOUT;
+    let mut kernel = WebKernel::start(options).await.expect("起 web 内核");
+
+    let client = SessionClient::connect(&kernel).await.expect("连内核");
+    let session = client.create(&workspace).await.expect("建会话");
+    client
+        .select_model(
+            &session,
+            &ModelChoice { provider: "fake-endpoint".into(), model: "fake-model".into(), effort: None },
+        )
+        .await
+        .expect("选模型");
+    let mut subscription = client.subscribe_events().await.expect("订阅事件");
+    client.prompt(&session, "请向我提问").await.expect("发 prompt");
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    let mut answered = false;
+    while tokio::time::Instant::now() < deadline && !answered {
+        match tokio::time::timeout(Duration::from_secs(10), subscription.next()).await {
+            Ok(Forwarded::Question(request)) => {
+                assert_eq!(request.questions[0].id, "pick");
+                let rpc = RemoteRpc::for_kernel(&kernel).expect("建调用句柄");
+                crate::remote::events::answer_question(
+                    &rpc,
+                    subscription.client_id(),
+                    &request.request_id,
+                    &[QuestionAnswer { id: "pick".into(), selected: vec!["B".into()], custom: None }],
+                )
+                .await
+                .expect("回答该送达");
+                answered = true;
+            }
+            Ok(_) => continue,
+            Err(_) => break,
+        }
+    }
+    assert!(answered, "模型问了，但没等到提问瀑布");
+
+    // 等模型那侧真的收到回答（工具结果里应带 B）。
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let mut seen = false;
+    while tokio::time::Instant::now() < deadline && !seen {
+        seen = provider
+            .requests()
+            .iter()
+            .any(|request| crate::fake_provider::transcript(&request["body"]).contains('B'));
+        if !seen {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    }
+    assert!(seen, "模型没收到回答：{:?}", provider.requests().len());
+
+    shutdown_and_confirm(&mut kernel, "提问往返之后").await;
 }

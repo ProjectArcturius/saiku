@@ -117,10 +117,10 @@ pub fn interactive(input: InteractiveInput<'_>) -> SpecResult<InteractiveLaunch>
             session_log_upload: cfg.runtime.session_log_upload,
             guard: &guard,
             session_search: true,
-            // 交互面还没有 ask_user 的应答 UI；装上就是一个会干等到超时的问题。
-            // **与版本无关**：0.2.1 的 web profile 里就已经有 `tool-ask-user`（2026-11-13 实测），
-            // 原来按版本门控等于在钉住的版本上把它放了出来。F5 做完应答再改回 false。
-            blocking_tools: true,
+            // 交互面现在能回答提问了：`user-questions/request` → 弹层 → `$events/result`。
+            // 端到端有 live 用例 `remote_live_a_question_is_answered_through_the_waterfall`
+            // （真内核 + 脚本化模型，2026-11-13 通过）。headless 仍然摘掉 —— 那边没有人答。
+            blocking_tools: false,
         },
         &extra,
     );

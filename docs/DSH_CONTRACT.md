@@ -84,6 +84,20 @@ saiku dsh doctor --version 0.2.2-rc.2          # 115 行 / 113 包，17 个必�
 
 结论：F4/F5 的进度只取决于 Saiku 侧的 UI 与事件映射，**不取决于升级**。
 
+### `$events/result` 只有一个 `args` 层（2026-11-13，端到端发现）
+
+写 F5 的端到端用例时撞到的：`events::answer` 把结果发成
+`{"args":{clientId,eventId,outcome}}`，而网关的
+`parseRemoteEventResultPayload` 只认 `{clientId,eventId,outcome}` 三个键 ——
+`rpc.call` 已经把它放进 `payload.args` 了。多包一层的后果是
+`api gateway: invalid Remote event result`，**而且它一直是坏的**：
+审批的「允许/拒绝」走的也是同一个函数。
+
+修好后新 live 用例 `remote_live_a_question_is_answered_through_the_waterfall`
+（真内核 + 脚本化假模型：模型调 `ask_user_question` → 瀑布 → 我们答 B → 模型收到 B）
+通过。审批的应答形状与它同源，但「真跑一次审批」还需要一条脚本化工具的用例，
+记在下一轮。
+
 ### 命令通道：在两个真内核上都实测过（2026-11-13）
 
 `commands/list` 与 `commands/execute` 不经过模型，所以在**不消耗配额**的前提下就能验形状：

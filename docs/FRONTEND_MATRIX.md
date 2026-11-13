@@ -31,7 +31,7 @@
 | Office（docx/xlsx/pptx） | `office-kit`、`tool-office` | 无 | 无 | F4 | 无入口；不要假装能读 |
 | 定时任务 | `schedule`、`tool-schedule`、`client-ui-schedule` | 无 | 无（有 `night` 控制器） | F4 | 显示「用 saiku night」 |
 | 夜班视图（Saiku 自有） | `saiku night` 的落盘状态 | 有（`/night`：完成/在跑/失败码/心跳/整批 token；`/night list` 看最近 10 次） | 有（`night status`） | — | 控制器从未跑过时明确说「没有记录」 |
-| 提问（ask_user） | `tool-ask-user`、`user-questions`、`client-ui-user-questions` | 有（`user-questions/request` 瀑布 → 弹层；Enter 确认、Esc 跳过；`$events/result` 回答案） | **仍禁** | F5 | 应答 UI 已接，但**内核侧工具仍摘掉**：还没和真内核联调过（下一轮做），在验证前宁可让模型直接问不出声，也不让会话干等。联调通过后把交互面打开、headless 继续禁用 |
+| 提问（ask_user） | `tool-ask-user`、`user-questions`、`client-ui-user-questions` | **有**（瀑布 → 弹层 → `$events/result`；Enter 确认、Esc 跳过） | headless **仍禁** | F5 完成 | 端到端已用真内核 + 脚本化模型验过（`remote_live_a_question_is_answered_through_the_waterfall`）。交互面打开，`night`/headless 继续摘掉——那里没有人答。限制：自由输入靠「跳过」降级，多选只取当前项 |
 | 审批（confirm） | `approval`、`user-approval`、`permission` | 有（`/approvals`、confirm 档） | 无（headless 拒绝 confirm） | F5 | 无审批通道时 confirm 档拒绝启动（已有） |
 | 浏览器/网络工具 | `tool-web`、`web-deepseek-api` | 无（内核工具直接可见） | 半（`--permission` 控制） | F6 | — |
 | 模型目录与切换 | `model/selection` | 有（模型对话框） | 有（`--model`） | — | — |

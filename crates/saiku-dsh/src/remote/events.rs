@@ -214,11 +214,11 @@ pub async fn answer_question(
 ) -> Result<(), RemoteError> {
     rpc.call(
         EVENTS_RESULT_ENDPOINT,
-        json!({ "args": {
+        json!({
             "clientId": client_id,
             "eventId": request_id,
             "outcome": question_outcome(answers),
-        } }),
+        }),
     )
     .await
     .map(|_| ())
@@ -256,13 +256,16 @@ pub async fn answer(
         Answer::AllowOnce => json!({ "kind": "result", "value": "allowed-once" }),
         Answer::Reject => json!({ "kind": "result", "value": "rejected" }),
     };
+    // **没有额外的 `args` 包装**：`rpc.call` 已经把它放进 `payload.args`，
+    // 网关那边 `parseRemoteEventResultPayload` 只认 `{clientId, eventId, outcome}` 三个键。
+    // 多包一层会得到 `api gateway: invalid Remote event result`（2026-11-13 实测）。
     rpc.call(
         EVENTS_RESULT_ENDPOINT,
-        json!({ "args": {
+        json!({
             "clientId": client_id,
             "eventId": request_id,
             "outcome": outcome,
-        } }),
+        }),
     )
     .await
     .map(|_| ())
