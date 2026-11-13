@@ -244,6 +244,20 @@ pub struct ApprovalRequest {
     pub agent: Option<String>,
 }
 
+/// 一次**已暂存**的文件上传：回执只能在这个会话里用，不是路径也不是 URL。
+///
+/// 内核把它变成 `FileUploadValue { receiptId, file: { attachmentId, name, bytes } }`。
+/// `receipt_id` 是「这个会话里可以引用它」的凭据；界面别把它当文件名显示。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UploadedFile {
+    pub receipt_id: String,
+    /// 内容寻址的 id（sha256），不是本地路径。
+    pub attachment_id: String,
+    pub name: String,
+    pub bytes: u64,
+}
+
 /// 内核在**问人**（`ask_user_question` 工具走 `user-questions/request` 瀑布）。
 ///
 /// 结构与审批刻意分开：审批是「准/不准」，提问是「选哪个/填什么」，混成一个类型会让

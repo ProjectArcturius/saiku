@@ -150,6 +150,30 @@ impl SessionClient {
         parse_commands(&value)
     }
 
+    /// 把一个文件**暂存**到内核（`fileUploads/upload`），拿到回执。
+    ///
+    /// 请求体是 `EncodedFileUploadRequest { data: base64, name? }`；返回
+    /// `{ receiptId, file: { attachmentId, name, bytes } }`。回执只在**这个 Agent 作用域**
+    /// 里有意义 —— 换会话就作废，不是可移植的 URL。
+    pub async fn upload_file(
+        &self,
+        session_id: &str,
+        bytes: &[u8],
+        name: &str,
+    ) -> Result<saiku_core::conversation::UploadedFile, RemoteError> {
+        let value = self
+            .rpc
+            .call(
+                "fileUploads/upload",
+                json!({
+                    "agentId": session_id,
+                    "request": { "data": base64_encode(bytes), "name": name },
+                }),
+            )
+            .await?;
+        parse_upload(&value)
+    }
+
     /// 回答一条 `Event::Question`（走 `$events/result` 的 waterfall 结果）。
     pub async fn answer_question(
         &self,
@@ -421,6 +445,49 @@ fn parse_commands(value: &Value) -> Result<Vec<saiku_core::service::KernelComman
         .collect())
 }
 
+/// `fileUploads/upload` 的返回值 → 中立类型。字段全在就要求全在，缺了就是协议问题。
+fn parse_upload(value: &Value) -> Result<saiku_core::conversation::UploadedFile, RemoteError> {
+    let receipt = value["receiptId"].as_str().filter(|id| !id.is_empty());
+    let file = &value["file"];
+    let attachment = file["attachmentId"].as_str().filter(|id| !id.is_empty());
+    match (receipt, attachment) {
+        (Some(receipt_id), Some(attachment_id)) => Ok(saiku_core::conversation::UploadedFile {
+            receipt_id: receipt_id.to_string(),
+            attachment_id: attachment_id.to_string(),
+            name: file["name"].as_str().unwrap_or_default().to_string(),
+            bytes: file["bytes"].as_u64().unwrap_or_default(),
+        }),
+        _ => Err(RemoteError::Protocol(format!(
+            "fileUploads/upload 的回执不完整（要 receiptId 与 file.attachmentId）：{value}"
+        ))),
+    }
+}
+
+/// 标准 base64（含 `=` 填充）。不引依赖：上传只用到标准字母表，RFC 4648 这张表就够。
+pub fn base64_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = chunk.get(1).copied().unwrap_or(0) as u32;
+        let b2 = chunk.get(2).copied().unwrap_or(0) as u32;
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+        out.push(TABLE[((triple >> 18) & 0x3f) as usize] as char);
+        out.push(TABLE[((triple >> 12) & 0x3f) as usize] as char);
+        out.push(if chunk.len() > 1 {
+            TABLE[((triple >> 6) & 0x3f) as usize] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            TABLE[(triple & 0x3f) as usize] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -598,6 +665,29 @@ mod tests {
     #[test]
     fn a_non_array_listing_is_a_protocol_error_not_an_empty_list() {
         assert!(parse_commands(&json!({ "oops": true })).is_err());
+    }
+
+    #[test]
+    fn base64_matches_the_canonical_padding_rules() {
+        assert_eq!(base64_encode(b""), "");
+        assert_eq!(base64_encode(b"f"), "Zg==");
+        assert_eq!(base64_encode(b"fo"), "Zm8=");
+        assert_eq!(base64_encode(b"foo"), "Zm9v");
+        assert_eq!(base64_encode(b"foob"), "Zm9vYg==");
+        assert_eq!(base64_encode(b"fooba"), "Zm9vYmE=");
+        assert_eq!(base64_encode(b"foobar"), "Zm9vYmFy");
+    }
+
+    #[test]
+    fn an_upload_receipt_missing_its_id_is_a_protocol_error() {
+        assert!(parse_upload(&json!({ "file": { "attachmentId": "a", "name": "x", "bytes": 1 } })).is_err());
+        let ok = parse_upload(&json!({
+            "receiptId": "r1",
+            "file": { "attachmentId": "sha", "name": "note.txt", "bytes": 5 },
+        }))
+        .unwrap();
+        assert_eq!(ok.receipt_id, "r1");
+        assert_eq!(ok.bytes, 5);
     }
 
 }

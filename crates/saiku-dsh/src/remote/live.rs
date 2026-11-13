@@ -39,6 +39,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::json;
 
+#[cfg(feature = "test-runtime")]
 use crate::remote::events::Forwarded;
 use crate::remote::host::{find_node, WebKernel, WebKernelOptions};
 use crate::remote::{RemoteFrame, RemoteMux, RemoteRpc, Secret, SessionClient};
@@ -713,4 +714,33 @@ async fn remote_live_an_approval_lets_the_tool_run() {
 
     let _ = ApprovalOutcome::AllowOnce;
     shutdown_and_confirm(&mut kernel, "审批往返之后").await;
+}
+
+/// 附件通道：`fileUploads/upload` 在真内核上收下一个文件并给回执。
+///
+/// 不需要模型：上传只是暂存，和「谁在跑」无关。这条用例证明的是
+/// 请求编码（base64 + name）与回执解析，不是 TUI 的附件入口（那个还没做）。
+#[tokio::test]
+#[ignore = "起真内核，需要本机已安装 DSH 运行时"]
+async fn remote_live_a_file_upload_returns_a_receipt() {
+    let Some((kernel, _home)) = start_kernel("remote_live_a_file_upload_returns_a_receipt").await
+    else {
+        return;
+    };
+    let client = SessionClient::connect(&kernel).await.expect("连内核");
+    let workspace = tempfile::tempdir().expect("建 workspace");
+    let session = client.create(workspace.path()).await.expect("建会话");
+
+    let payload = "附件通道的验收载荷\n";
+    let uploaded = client
+        .upload_file(&session, payload.as_bytes(), "note.txt")
+        .await
+        .expect("上传该成功");
+    assert!(!uploaded.receipt_id.is_empty(), "回执不能空：{uploaded:?}");
+    assert!(!uploaded.attachment_id.is_empty(), "{uploaded:?}");
+    assert_eq!(uploaded.name, "note.txt", "内核会把名字净化成叶子名");
+    assert_eq!(uploaded.bytes as usize, payload.len(), "字节数要原样");
+
+    let mut kernel = kernel;
+    shutdown_and_confirm(&mut kernel, "上传之后").await;
 }
